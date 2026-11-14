@@ -1,0 +1,49 @@
+{% extends "store/layout.html" %}
+
+{% block title %}Create New Item{% endblock %}
+
+{% block content %}
+<section class="form-section">
+  <div class="form-card">
+    <h1>Create New Item</h1>
+
+    <form class="medical-form" action="{% url 'new' %}" method="post">
+      {% csrf_token %}
+
+      <div class="form-grid">
+        <div class="form-field full">
+          <label for="name">Item name</label>
+          <input id="name" type="text" name="name" placeholder="Enter item name" required />
+        </div>
+
+        <div class="form-field full">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" placeholder="Enter item description" required></textarea>
+        </div>
+
+        <div class="form-field">
+          <label for="quantity">Quantity</label>
+          <input id="quantity" type="number" name="quantity" placeholder="Enter item quantity" required />
+        </div>
+
+        <div class="form-field">
+          <label for="cost_price">Cost price</label>
+          <input id="cost_price" step="0.01" type="number" name="cost_price" placeholder="Enter cost price" required />
+        </div>
+
+        <div class="form-field">
+          <label for="sale_price">Sale price</label>
+          <input id="sale_price" step="0.01" type="number" name="sale_price" placeholder="Enter sale price" required />
+        </div>
+
+        <div class="form-field full">
+          <label for="expiry_date">Expiry date</label>
+          <input id="expiry_date" type="date" name="expiry_date" required />
+        </div>
+      </div>
+
+      <button type="submit" class="primary-btn">Create Item</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

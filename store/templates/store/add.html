@@ -1,0 +1,92 @@
+{% extends "store/layout.html" %}
+
+{% block title %}Add New Batch{% endblock %}
+
+{% block content %}
+<section class="form-section">
+    <div class="form-card">
+        <h1>Add New Batch</h1>
+
+        <form class="medical-form" action="{% url 'add' %}" method="post">
+            {% csrf_token %}
+
+            <div class="form-grid">
+                <div class="form-field full">
+                    <label for="item_id">Select item</label>
+                    <div class="select-wrap">
+                        <select id="item_id" name="item_id" required>
+                            <option value="" disabled selected>-- Select an item --</option>
+                            {% for item in items %}
+                                <option value="{{ item.id }}">{{ item.name }}</option>
+                            {% empty %}
+                                <option value="" disabled>No items available yet</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+
+
+                <div class="form-field">
+                    <label for="quantity">Quantity</label>
+                    <input id="quantity" type="number" name="quantity" min="1" placeholder="Enter batch quantity" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="expiry_date">Expiry date</label>
+                    <input id="expiry_date" type="date" name="expiry_date" required>
+                </div>
+            </div>
+
+            <button type="submit" class="primary-btn">Add Batch</button>
+        </form>
+    </div>
+</section>
+<style>
+    .select-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.select-wrap select {
+    width: 100%;
+    padding: 12px 40px 12px 14px;
+    font-size: 1rem;
+    font-family: inherit;
+    color: #1e293b;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    cursor: pointer;
+    
+    /* Removes default browser dropdown styling */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+/* Custom dropdown arrow */
+.select-wrap::after {
+    content: "▼";
+    font-size: 0.75rem;
+    color: #64748b;
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none; /* Lets clicks pass straight through to the select box */
+}
+
+.select-wrap select:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+}
+
+/* Greys out the placeholder option when unselected */
+.select-wrap select:invalid {
+    color: #94a3b8;
+}
+
+</style>
+{% endblock %}
