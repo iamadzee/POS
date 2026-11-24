@@ -1,0 +1,1589 @@
+manage.py:1:#!/usr/bin/env python
+manage.py:2:"""Django's command-line utility for administrative tasks."""
+manage.py:3:import os
+manage.py:4:import sys
+manage.py:5:
+manage.py:6:
+manage.py:7:def main():
+manage.py:8:    """Run administrative tasks."""
+manage.py:9:    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'times_medical.settings')
+manage.py:10:    try:
+manage.py:11:        from django.core.management import execute_from_command_line
+manage.py:12:    except ImportError as exc:
+manage.py:13:        raise ImportError(
+manage.py:14:            "Couldn't import Django. Are you sure it's installed and "
+manage.py:15:            "available on your PYTHONPATH environment variable? Did you "
+manage.py:16:            "forget to activate a virtual environment?"
+manage.py:17:        ) from exc
+manage.py:18:    execute_from_command_line(sys.argv)
+manage.py:19:
+manage.py:20:
+manage.py:21:if __name__ == '__main__':
+manage.py:22:    main()
+store/admin.py:1:from django.contrib import admin
+store/admin.py:2:from store.models import Item, Batch, Sale
+store/admin.py:3:
+store/admin.py:4:class BatchInline(admin.TabularInline):
+store/admin.py:5:    model = Batch
+store/admin.py:6:    extra = 1
+store/admin.py:7:    fields = ('quantity', 'expiry_date')
+store/admin.py:8:
+store/admin.py:9:class ItemAdmin(admin.ModelAdmin):
+store/admin.py:10:    list_display = ('name', 'cost_price', 'selling_price', 'total_quantity_display', 'unexpired_quantity_display', 'profit_display')
+store/admin.py:11:    search_fields = ('name', 'description')
+store/admin.py:12:    inlines = [BatchInline]
+store/admin.py:13:
+store/admin.py:14:    @admin.display(description="Total Stock")
+store/admin.py:15:    def total_quantity_display(self, obj):
+store/admin.py:16:        return obj.total_quantity()
+store/admin.py:17:
+store/admin.py:18:    @admin.display(description="Available (Unexpired)")
+store/admin.py:19:    def unexpired_quantity_display(self, obj):
+store/admin.py:20:        return obj.unexpired_quantity()
+store/admin.py:21:
+store/admin.py:22:    @admin.display(description="Unit Profit")
+store/admin.py:23:    def profit_display(self, obj):
+store/admin.py:24:        return f"{obj.profit:.2f}"
+store/admin.py:25:
+store/admin.py:26:class BatchAdmin(admin.ModelAdmin):
+store/admin.py:27:    list_display = ('id', 'item', 'quantity', 'expiry_date', 'cost_price_display', 'selling_price_display', 'profit_display', 'is_expired_display')
+store/admin.py:28:    list_filter = ('expiry_date', 'item')
+store/admin.py:29:    search_fields = ('item__name',)
+store/admin.py:30:
+store/admin.py:31:    @admin.display(description="Cost Price")
+store/admin.py:32:    def cost_price_display(self, obj):
+store/admin.py:33:        return f"{obj.cost_price:.2f}"
+store/admin.py:34:
+store/admin.py:35:    @admin.display(description="Selling Price")
+store/admin.py:36:    def selling_price_display(self, obj):
+store/admin.py:37:        return f"{obj.selling_price:.2f}"
+store/admin.py:38:
+store/admin.py:39:    @admin.display(description="Unit Profit")
+store/admin.py:40:    def profit_display(self, obj):
+store/admin.py:41:        return f"{obj.profit:.2f}"
+store/admin.py:42:
+store/admin.py:43:    @admin.display(description="Expired?", boolean=True)
+store/admin.py:44:    def is_expired_display(self, obj):
+store/admin.py:45:        return obj.is_expired
+store/admin.py:46:
+store/admin.py:47:class SaleAdmin(admin.ModelAdmin):
+store/admin.py:48:    list_display = ('id', 'timestamp', 'item_name', 'quantity', 'selling_price', 'total_price', 'profit')
+store/admin.py:49:    list_filter = ('timestamp', 'item')
+store/admin.py:50:    search_fields = ('item_name',)
+store/admin.py:51:    readonly_fields = ('timestamp',)
+store/admin.py:52:
+store/admin.py:53:admin.site.register(Item, ItemAdmin)
+store/admin.py:54:admin.site.register(Batch, BatchAdmin)
+store/admin.py:55:admin.site.register(Sale, SaleAdmin)
+store/apps.py:1:from django.apps import AppConfig
+store/apps.py:2:
+store/apps.py:3:
+store/apps.py:4:class StoreConfig(AppConfig):
+store/apps.py:5:    name = 'store'
+store/models.py:1:from datetime import date
+store/models.py:2:from decimal import Decimal
+store/models.py:3:from django.db import models
+store/models.py:4:from django.contrib.auth.models import AbstractUser
+store/models.py:5:
+store/models.py:6:class User(AbstractUser):
+store/models.py:7:    pass
+store/models.py:8:
+store/models.py:9:class Item(models.Model):
+store/models.py:10:    name = models.CharField(max_length=100)
+store/models.py:11:    description = models.TextField(blank=True)
+store/models.py:12:    cost_price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+store/models.py:13:    selling_price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+store/models.py:14:
+store/models.py:15:    def __str__(self):
+store/models.py:16:        return self.name
+store/models.py:17:
+store/models.py:18:    def total_quantity(self):
+store/models.py:19:        return sum(batch.quantity for batch in self.batches.all())
+store/models.py:20:
+store/models.py:21:    def unexpired_quantity(self):
+store/models.py:22:        return sum(batch.quantity for batch in self.batches.filter(expiry_date__gte=date.today()))
+store/models.py:23:
+store/models.py:24:    def expired_quantity(self):
+store/models.py:25:        return sum(batch.quantity for batch in self.batches.filter(expiry_date__lt=date.today()))
+store/models.py:26:
+store/models.py:27:    @property
+store/models.py:28:    def quantity(self):
+store/models.py:29:        return self.total_quantity()
+store/models.py:30:
+store/models.py:31:    @property
+store/models.py:32:    def amount(self):
+store/models.py:33:        return self.total_quantity()
+store/models.py:34:
+store/models.py:35:    @property
+store/models.py:36:    def profit(self):
+store/models.py:37:        return self.selling_price - self.cost_price
+store/models.py:38:
+store/models.py:39:    @property
+store/models.py:40:    def total_cost(self):
+store/models.py:41:        return self.cost_price * self.total_quantity()
+store/models.py:42:
+store/models.py:43:    @property
+store/models.py:44:    def total_selling(self):
+store/models.py:45:        return self.selling_price * self.total_quantity()
+store/models.py:46:
+store/models.py:47:    @property
+store/models.py:48:    def total_profit(self):
+store/models.py:49:        return self.profit * self.total_quantity()
+store/models.py:50:
+store/models.py:51:
+store/models.py:52:class Batch(models.Model):
+store/models.py:53:    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="batches")
+store/models.py:54:    quantity = models.IntegerField()
+store/models.py:55:    expiry_date = models.DateField()
+store/models.py:56:
+store/models.py:57:    class Meta:
+store/models.py:58:        ordering = ["expiry_date"]
+store/models.py:59:
+store/models.py:60:    def __str__(self):
+store/models.py:61:        return f"{self.item.name} - Exp: {self.expiry_date} ({self.quantity})"
+store/models.py:62:
+store/models.py:63:    @property
+store/models.py:64:    def name(self):
+store/models.py:65:        return self.item.name if self.item else ""
+store/models.py:66:
+store/models.py:67:    @property
+store/models.py:68:    def amount(self):
+store/models.py:69:        return self.quantity
+store/models.py:70:
+store/models.py:71:    @amount.setter
+store/models.py:72:    def amount(self, value):
+store/models.py:73:        self.quantity = value
+store/models.py:74:
+store/models.py:75:    @property
+store/models.py:76:    def is_expired(self):
+store/models.py:77:        return self.expiry_date < date.today()
+store/models.py:78:
+store/models.py:79:    @property
+store/models.py:80:    def cost_price(self):
+store/models.py:81:        return self.item.cost_price if self.item else Decimal("0.00")
+store/models.py:82:
+store/models.py:83:    @property
+store/models.py:84:    def selling_price(self):
+store/models.py:85:        return self.item.selling_price if self.item else Decimal("0.00")
+store/models.py:86:
+store/models.py:87:    @property
+store/models.py:88:    def profit(self):
+store/models.py:89:        if self.item:
+store/models.py:90:            return self.selling_price - self.cost_price
+store/models.py:91:        return Decimal("0.00")
+store/models.py:92:
+store/models.py:93:    @property
+store/models.py:94:    def total_cost(self):
+store/models.py:95:        return self.cost_price * self.quantity
+store/models.py:96:
+store/models.py:97:    @property
+store/models.py:98:    def total_selling(self):
+store/models.py:99:        return self.selling_price * self.quantity
+store/models.py:100:
+store/models.py:101:    @property
+store/models.py:102:    def total_profit(self):
+store/models.py:103:        return self.profit * self.quantity
+store/models.py:104:
+store/models.py:105:
+store/models.py:106:class Sale(models.Model):
+store/models.py:107:    item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True, blank=True, related_name="sales")
+store/models.py:108:    item_name = models.CharField(max_length=100)
+store/models.py:109:    quantity = models.IntegerField()
+store/models.py:110:    cost_price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+store/models.py:111:    selling_price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+store/models.py:112:    total_price = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+store/models.py:113:    profit = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+store/models.py:114:    timestamp = models.DateTimeField(auto_now_add=True)
+store/models.py:115:
+store/models.py:116:    class Meta:
+store/models.py:117:        ordering = ["-timestamp"]
+store/models.py:118:
+store/models.py:119:    def __str__(self):
+store/models.py:120:        return f"{self.item_name} x {self.quantity} ({self.total_price})"
+store/tests.py:1:from datetime import date, timedelta
+store/tests.py:2:from decimal import Decimal
+store/tests.py:3:from django.test import TestCase, Client
+store/tests.py:4:from django.urls import reverse
+store/tests.py:5:from store.models import Item, Batch, Sale
+store/tests.py:6:
+store/tests.py:7:class ModelTests(TestCase):
+store/tests.py:8:    def setUp(self):
+store/tests.py:9:        self.item = Item.objects.create(
+store/tests.py:10:            name="Paracetamol 500mg",
+store/tests.py:11:            description="Pain relief",
+store/tests.py:12:            cost_price=Decimal("10.00"),
+store/tests.py:13:            selling_price=Decimal("15.00"),
+store/tests.py:14:        )
+store/tests.py:15:        self.batch1 = Batch.objects.create(
+store/tests.py:16:            item=self.item,
+store/tests.py:17:            quantity=20,
+store/tests.py:18:            expiry_date=date.today() + timedelta(days=30),
+store/tests.py:19:        )
+store/tests.py:20:        self.batch2 = Batch.objects.create(
+store/tests.py:21:            item=self.item,
+store/tests.py:22:            quantity=30,
+store/tests.py:23:            expiry_date=date.today() + timedelta(days=60),
+store/tests.py:24:        )
+store/tests.py:25:        self.expired_batch = Batch.objects.create(
+store/tests.py:26:            item=self.item,
+store/tests.py:27:            quantity=5,
+store/tests.py:28:            expiry_date=date.today() - timedelta(days=5),
+store/tests.py:29:        )
+store/tests.py:30:
+store/tests.py:31:    def test_item_properties(self):
+store/tests.py:32:        self.assertEqual(self.item.total_quantity(), 55)
+store/tests.py:33:        self.assertEqual(self.item.unexpired_quantity(), 50)
+store/tests.py:34:        self.assertEqual(self.item.expired_quantity(), 5)
+store/tests.py:35:        self.assertEqual(self.item.profit, Decimal("5.00"))
+store/tests.py:36:        self.assertEqual(self.item.total_cost, Decimal("550.00"))
+store/tests.py:37:        self.assertEqual(self.item.total_selling, Decimal("825.00"))
+store/tests.py:38:        self.assertEqual(self.item.total_profit, Decimal("275.00"))
+store/tests.py:39:
+store/tests.py:40:    def test_batch_properties(self):
+store/tests.py:41:        self.assertEqual(self.batch1.name, "Paracetamol 500mg")
+store/tests.py:42:        self.assertEqual(self.batch1.amount, 20)
+store/tests.py:43:        self.assertEqual(self.batch1.profit, Decimal("5.00"))
+store/tests.py:44:        self.assertFalse(self.batch1.is_expired)
+store/tests.py:45:        self.assertTrue(self.expired_batch.is_expired)
+store/tests.py:46:
+store/tests.py:47:    def test_sale_model(self):
+store/tests.py:48:        sale = Sale.objects.create(
+store/tests.py:49:            item=self.item,
+store/tests.py:50:            item_name=self.item.name,
+store/tests.py:51:            quantity=3,
+store/tests.py:52:            cost_price=Decimal("10.00"),
+store/tests.py:53:            selling_price=Decimal("15.00"),
+store/tests.py:54:            total_price=Decimal("45.00"),
+store/tests.py:55:            profit=Decimal("15.00")
+store/tests.py:56:        )
+store/tests.py:57:        self.assertEqual(sale.total_price, Decimal("45.00"))
+store/tests.py:58:        self.assertEqual(sale.profit, Decimal("15.00"))
+store/tests.py:59:        self.assertIn("Paracetamol 500mg", str(sale))
+store/tests.py:60:
+store/tests.py:61:
+store/tests.py:62:class ViewTests(TestCase):
+store/tests.py:63:    def setUp(self):
+store/tests.py:64:        self.client = Client()
+store/tests.py:65:        self.item = Item.objects.create(
+store/tests.py:66:            name="Amoxicillin 250mg",
+store/tests.py:67:            description="Antibiotic",
+store/tests.py:68:            cost_price=Decimal("20.00"),
+store/tests.py:69:            selling_price=Decimal("30.00"),
+store/tests.py:70:        )
+store/tests.py:71:        # 1 unexpired batch (10 units)
+store/tests.py:72:        self.batch1 = Batch.objects.create(
+store/tests.py:73:            item=self.item,
+store/tests.py:74:            quantity=10,
+store/tests.py:75:            expiry_date=date.today() + timedelta(days=10),
+store/tests.py:76:        )
+store/tests.py:77:        # 1 unexpired batch (15 units)
+store/tests.py:78:        self.batch2 = Batch.objects.create(
+store/tests.py:79:            item=self.item,
+store/tests.py:80:            quantity=15,
+store/tests.py:81:            expiry_date=date.today() + timedelta(days=50),
+store/tests.py:82:        )
+store/tests.py:83:        # 1 expired batch (8 units)
+store/tests.py:84:        self.expired_batch = Batch.objects.create(
+store/tests.py:85:            item=self.item,
+store/tests.py:86:            quantity=8,
+store/tests.py:87:            expiry_date=date.today() - timedelta(days=1),
+store/tests.py:88:        )
+store/tests.py:89:
+store/tests.py:90:    def test_inventory_view(self):
+store/tests.py:91:        response = self.client.get(reverse('inventory'))
+store/tests.py:92:        self.assertEqual(response.status_code, 200)
+store/tests.py:93:        self.assertContains(response, "Amoxicillin 250mg")
+store/tests.py:94:        self.assertContains(response, "Expired")
+store/tests.py:95:
+store/tests.py:96:    def test_new_item_view(self):
+store/tests.py:97:        post_data = {
+store/tests.py:98:            'name': 'Ibuprofen 400mg',
+store/tests.py:99:            'description': 'Pain relief',
+store/tests.py:100:            'cost_price': '5.00',
+store/tests.py:101:            'sale_price': '8.50',
+store/tests.py:102:            'quantity': '25',
+store/tests.py:103:            'expiry_date': (date.today() + timedelta(days=90)).isoformat(),
+store/tests.py:104:        }
+store/tests.py:105:        response = self.client.post(reverse('new'), post_data, follow=True)
+store/tests.py:106:        self.assertEqual(response.status_code, 200)
+store/tests.py:107:        item = Item.objects.get(name='Ibuprofen 400mg')
+store/tests.py:108:        self.assertEqual(item.batches.count(), 1)
+store/tests.py:109:
+store/tests.py:110:    def test_add_batch_view(self):
+store/tests.py:111:        post_data = {
+store/tests.py:112:            'item_id': str(self.item.id),
+store/tests.py:113:            'quantity': '12',
+store/tests.py:114:            'expiry_date': (date.today() + timedelta(days=120)).isoformat(),
+store/tests.py:115:        }
+store/tests.py:116:        response = self.client.post(reverse('add'), post_data, follow=True)
+store/tests.py:117:        self.assertEqual(response.status_code, 200)
+store/tests.py:118:        self.assertEqual(self.item.batches.count(), 4)
+store/tests.py:119:
+store/tests.py:120:    def test_sell_logs_sale_in_history(self):
+store/tests.py:121:        # Selling 5 units should log a Sale object with total_price and profit
+store/tests.py:122:        post_data = {
+store/tests.py:123:            'item_id': str(self.item.id),
+store/tests.py:124:            'quantity': '5',
+store/tests.py:125:        }
+store/tests.py:126:        response = self.client.post(reverse('home'), post_data, follow=True)
+store/tests.py:127:        self.assertEqual(response.status_code, 200)
+store/tests.py:128:
+store/tests.py:129:        # Check sale record created
+store/tests.py:130:        self.assertEqual(Sale.objects.count(), 1)
+store/tests.py:131:        sale = Sale.objects.first()
+store/tests.py:132:        self.assertEqual(sale.item, self.item)
+store/tests.py:133:        self.assertEqual(sale.quantity, 5)
+store/tests.py:134:        self.assertEqual(sale.cost_price, Decimal("20.00"))
+store/tests.py:135:        self.assertEqual(sale.selling_price, Decimal("30.00"))
+store/tests.py:136:        self.assertEqual(sale.total_price, Decimal("150.00")) # 5 * 30
+store/tests.py:137:        self.assertEqual(sale.profit, Decimal("50.00"))       # 5 * (30 - 20)
+store/tests.py:138:
+store/tests.py:139:    def test_sell_blocks_expired_stock_and_uses_unexpired_only(self):
+store/tests.py:140:        # Total unexpired is 25 (10 + 15). Expired is 8.
+store/tests.py:141:        # Selling 15: should deduct from batch1 (10) and batch2 (5), leaving expired_batch untouched!
+store/tests.py:142:        post_data = {
+store/tests.py:143:            'item_id': str(self.item.id),
+store/tests.py:144:            'quantity': '15',
+store/tests.py:145:        }
+store/tests.py:146:        response = self.client.post(reverse('home'), post_data, follow=True)
+store/tests.py:147:        self.assertEqual(response.status_code, 200)
+store/tests.py:148:
+store/tests.py:149:        self.batch1.refresh_from_db()
+store/tests.py:150:        self.batch2.refresh_from_db()
+store/tests.py:151:        self.expired_batch.refresh_from_db()
+store/tests.py:152:
+store/tests.py:153:        self.assertEqual(self.batch1.quantity, 0)
+store/tests.py:154:        self.assertEqual(self.batch2.quantity, 10)
+store/tests.py:155:        self.assertEqual(self.expired_batch.quantity, 8) # Expired stock is untouched!
+store/tests.py:156:
+store/tests.py:157:    def test_sell_blocks_when_requested_exceeds_unexpired(self):
+store/tests.py:158:        # Total in stock is 33 (25 unexpired + 8 expired).
+store/tests.py:159:        # Requesting 28 units (> 25 unexpired) should be blocked, alerting the shopkeeper about 8 expired units!
+store/tests.py:160:        post_data = {
+store/tests.py:161:            'item_id': str(self.item.id),
+store/tests.py:162:            'quantity': '28',
+store/tests.py:163:        }
+store/tests.py:164:        response = self.client.post(reverse('home'), post_data, follow=True)
+store/tests.py:165:        self.assertEqual(response.status_code, 200)
+store/tests.py:166:        self.assertContains(response, "Blocked sale")
+store/tests.py:167:        self.assertContains(response, "8 expired unit(s) skipped")
+store/tests.py:168:
+store/tests.py:169:        # No stock was deducted
+store/tests.py:170:        self.batch1.refresh_from_db()
+store/tests.py:171:        self.assertEqual(self.batch1.quantity, 10)
+store/tests.py:172:        self.assertEqual(Sale.objects.count(), 0)
+store/tests.py:173:
+store/tests.py:174:    def test_history_view_displays_sales_and_daily_totals(self):
+store/tests.py:175:        # Create a sale
+store/tests.py:176:        Sale.objects.create(
+store/tests.py:177:            item=self.item,
+store/tests.py:178:            item_name=self.item.name,
+store/tests.py:179:            quantity=4,
+store/tests.py:180:            cost_price=Decimal("20.00"),
+store/tests.py:181:            selling_price=Decimal("30.00"),
+store/tests.py:182:            total_price=Decimal("120.00"),
+store/tests.py:183:            profit=Decimal("40.00")
+store/tests.py:184:        )
+store/tests.py:185:
+store/tests.py:186:        response = self.client.get(reverse('history'))
+store/tests.py:187:        self.assertEqual(response.status_code, 200)
+store/tests.py:188:        self.assertContains(response, "Today's Cash Total")
+store/tests.py:189:        self.assertContains(response, "120.00")
+store/tests.py:190:        self.assertContains(response, "40.00")
+store/tests.py:191:        self.assertContains(response, "Amoxicillin 250mg")
+store/tests.py:192:        self.assertEqual(response.context['today_cash_total'], "120.00")
+store/tests.py:193:        self.assertEqual(response.context['today_profit'], "40.00")
+store/tests.py:194:        self.assertEqual(response.context['today_sales_count'], 1)
+store/tests.py:195:        self.assertEqual(response.context['today_items_sold'], 4)
+store/urls.py:1:from django.urls import path
+store/urls.py:2:from . import views
+store/urls.py:3:
+store/urls.py:4:urlpatterns = [
+store/urls.py:5:    path('' , views.home, name='home'),
+store/urls.py:6:    path('new/' , views.new, name='new'),
+store/urls.py:7:    path('add/' , views.add, name='add'),
+store/urls.py:8:    path('history/' , views.history, name='history'),
+store/urls.py:9:    path('inventory/' , views.inventory, name='inventory'),
+store/urls.py:10:]
+store/views.py:1:from datetime import date
+store/views.py:2:from decimal import Decimal
+store/views.py:3:from django.shortcuts import render, redirect, get_object_or_404
+store/views.py:4:from django.contrib import messages
+store/views.py:5:from django.utils import timezone
+store/views.py:6:from .models import Item, Batch, Sale
+store/views.py:7:
+store/views.py:8:def home(request):
+store/views.py:9:    if request.method == 'POST':
+store/views.py:10:        item_id = request.POST.get('item_id')
+store/views.py:11:        quantity_to_sell = request.POST.get('quantity')
+store/views.py:12:
+store/views.py:13:        if not item_id or not quantity_to_sell:
+store/views.py:14:            messages.error(request, "Please select an item and enter a quantity to sell.")
+store/views.py:15:            return redirect('home')
+store/views.py:16:
+store/views.py:17:        try:
+store/views.py:18:            quantity_to_sell = int(quantity_to_sell)
+store/views.py:19:            if quantity_to_sell <= 0:
+store/views.py:20:                messages.error(request, "Quantity to sell must be greater than zero.")
+store/views.py:21:                return redirect('home')
+store/views.py:22:        except ValueError:
+store/views.py:23:            messages.error(request, "Please enter a valid quantity.")
+store/views.py:24:            return redirect('home')
+store/views.py:25:
+store/views.py:26:        item = get_object_or_404(Item, id=item_id)
+store/views.py:27:        today = date.today()
+store/views.py:28:
+store/views.py:29:        # Filter unexpired batches with stock
+store/views.py:30:        valid_batches = item.batches.filter(quantity__gt=0, expiry_date__gte=today).order_by('expiry_date')
+store/views.py:31:        unexpired_quantity = sum(batch.quantity for batch in valid_batches)
+store/views.py:32:
+store/views.py:33:        # Check for expired batches that must be blocked
+store/views.py:34:        expired_batches = item.batches.filter(quantity__gt=0, expiry_date__lt=today)
+store/views.py:35:        expired_quantity = sum(batch.quantity for batch in expired_batches)
+store/views.py:36:
+store/views.py:37:        if quantity_to_sell > unexpired_quantity:
+store/views.py:38:            if expired_quantity > 0:
+store/views.py:39:                messages.error(
+store/views.py:40:                    request,
+store/views.py:41:                    f"Blocked sale: '{item.name}' has {expired_quantity} expired unit(s) skipped. "
+store/views.py:42:                    f"Only {unexpired_quantity} unexpired unit(s) available in stock (requested {quantity_to_sell})."
+store/views.py:43:                )
+store/views.py:44:            else:
+store/views.py:45:                messages.error(
+store/views.py:46:                    request,
+store/views.py:47:                    f"Insufficient stock for '{item.name}'. Available: {unexpired_quantity}, Requested: {quantity_to_sell}."
+store/views.py:48:                )
+store/views.py:49:            return redirect('home')
+store/views.py:50:
+store/views.py:51:        # Sell using FEFO (First-Expired, First-Out) from valid unexpired batches only
+store/views.py:52:        remaining = quantity_to_sell
+store/views.py:53:        for batch in valid_batches:
+store/views.py:54:            if batch.quantity <= remaining:
+store/views.py:55:                remaining -= batch.quantity
+store/views.py:56:                batch.quantity = 0
+store/views.py:57:                batch.save()
+store/views.py:58:            else:
+store/views.py:59:                batch.quantity -= remaining
+store/views.py:60:                batch.save()
+store/views.py:61:                remaining = 0
+store/views.py:62:                break
+store/views.py:63:
+store/views.py:64:        # Log sale in History
+store/views.py:65:        total_price = item.selling_price * quantity_to_sell
+store/views.py:66:        profit = (item.selling_price - item.cost_price) * quantity_to_sell
+store/views.py:67:        Sale.objects.create(
+store/views.py:68:            item=item,
+store/views.py:69:            item_name=item.name,
+store/views.py:70:            quantity=quantity_to_sell,
+store/views.py:71:            cost_price=item.cost_price,
+store/views.py:72:            selling_price=item.selling_price,
+store/views.py:73:            total_price=total_price,
+store/views.py:74:            profit=profit
+store/views.py:75:        )
+store/views.py:76:
+store/views.py:77:        msg = f"Successfully sold {quantity_to_sell} unit(s) of '{item.name}' for {total_price:.2f}!"
+store/views.py:78:        if expired_quantity > 0:
+store/views.py:79:            msg += f" Note: {expired_quantity} expired unit(s) remain on shelf and should be disposed."
+store/views.py:80:
+store/views.py:81:        messages.success(request, msg)
+store/views.py:82:        return redirect('home')
+store/views.py:83:
+store/views.py:84:    items = Item.objects.all().prefetch_related('batches')
+store/views.py:85:    return render(request, 'store/home.html', {'items': items})
+store/views.py:86:
+store/views.py:87:
+store/views.py:88:def new(request):
+store/views.py:89:    if request.method == 'POST':
+store/views.py:90:        name = request.POST.get('name', '').strip()
+store/views.py:91:        description = request.POST.get('description', '').strip()
+store/views.py:92:        cost_price = request.POST.get('cost_price') or 0
+store/views.py:93:        selling_price = request.POST.get('sale_price') or request.POST.get('selling_price') or 0
+store/views.py:94:        quantity = request.POST.get('quantity')
+store/views.py:95:        expiry_date = request.POST.get('expiry_date')
+store/views.py:96:
+store/views.py:97:        if not name:
+store/views.py:98:            messages.error(request, "Item name is required.")
+store/views.py:99:            return redirect('new')
+store/views.py:100:
+store/views.py:101:        item = Item.objects.create(
+store/views.py:102:            name=name,
+store/views.py:103:            description=description,
+store/views.py:104:            cost_price=cost_price,
+store/views.py:105:            selling_price=selling_price,
+store/views.py:106:        )
+store/views.py:107:
+store/views.py:108:        qty = 0
+store/views.py:109:        if quantity:
+store/views.py:110:            try:
+store/views.py:111:                qty = int(quantity)
+store/views.py:112:            except ValueError:
+store/views.py:113:                qty = 0
+store/views.py:114:
+store/views.py:115:        if expiry_date and qty > 0:
+store/views.py:116:            Batch.objects.create(
+store/views.py:117:                item=item,
+store/views.py:118:                quantity=qty,
+store/views.py:119:                expiry_date=expiry_date
+store/views.py:120:            )
+store/views.py:121:
+store/views.py:122:        messages.success(request, f"Item '{item.name}' created successfully!")
+store/views.py:123:        return redirect('inventory')
+store/views.py:124:
+store/views.py:125:    return render(request, 'store/new.html')
+store/views.py:126:
+store/views.py:127:
+store/views.py:128:def add(request):
+store/views.py:129:    if request.method == 'POST':
+store/views.py:130:        item_id = request.POST.get('item_id')
+store/views.py:131:        quantity = request.POST.get('quantity')
+store/views.py:132:        expiry_date = request.POST.get('expiry_date')
+store/views.py:133:
+store/views.py:134:        if not item_id or not quantity or not expiry_date:
+store/views.py:135:            messages.error(request, "Please fill in all required fields.")
+store/views.py:136:            return redirect('add')
+store/views.py:137:
+store/views.py:138:        try:
+store/views.py:139:            qty = int(quantity)
+store/views.py:140:            if qty <= 0:
+store/views.py:141:                messages.error(request, "Batch quantity must be greater than zero.")
+store/views.py:142:                return redirect('add')
+store/views.py:143:        except ValueError:
+store/views.py:144:            messages.error(request, "Please enter a valid batch quantity.")
+store/views.py:145:            return redirect('add')
+store/views.py:146:
+store/views.py:147:        item = get_object_or_404(Item, id=item_id)
+store/views.py:148:        Batch.objects.create(
+store/views.py:149:            item=item,
+store/views.py:150:            quantity=qty,
+store/views.py:151:            expiry_date=expiry_date
+store/views.py:152:        )
+store/views.py:153:
+store/views.py:154:        messages.success(request, f"Batch of {qty} added for '{item.name}'!")
+store/views.py:155:        return redirect('inventory')
+store/views.py:156:
+store/views.py:157:    items = Item.objects.all()
+store/views.py:158:    return render(request, 'store/add.html', {'items': items})
+store/views.py:159:
+store/views.py:160:
+store/views.py:161:def history(request):
+store/views.py:162:    sales = Sale.objects.all().order_by('-timestamp')
+store/views.py:163:    today = timezone.localdate()
+store/views.py:164:
+store/views.py:165:    today_sales = [s for s in sales if timezone.localtime(s.timestamp).date() == today]
+store/views.py:166:    today_cash_total = sum(s.total_price for s in today_sales)
+store/views.py:167:    today_profit = sum(s.profit for s in today_sales)
+store/views.py:168:    today_sales_count = len(today_sales)
+store/views.py:169:    today_items_sold = sum(s.quantity for s in today_sales)
+store/views.py:170:
+store/views.py:171:    all_time_cash = sum(s.total_price for s in sales)
+store/views.py:172:    all_time_profit = sum(s.profit for s in sales)
+store/views.py:173:
+store/views.py:174:    context = {
+store/views.py:175:        'sales': sales,
+store/views.py:176:        'today_cash_total': f"{today_cash_total:.2f}",
+store/views.py:177:        'today_profit': f"{today_profit:.2f}",
+store/views.py:178:        'today_sales_count': today_sales_count,
+store/views.py:179:        'today_items_sold': today_items_sold,
+store/views.py:180:        'all_time_cash': f"{all_time_cash:.2f}",
+store/views.py:181:        'all_time_profit': f"{all_time_profit:.2f}",
+store/views.py:182:    }
+store/views.py:183:    return render(request, 'store/history.html', context)
+store/views.py:184:
+store/views.py:185:
+store/views.py:186:def inventory(request):
+store/views.py:187:    batches = list(Batch.objects.select_related('item').all())
+store/views.py:188:
+store/views.py:189:    # Include items that don't have any batch yet with quantity 0
+store/views.py:190:    items_with_batches = {b.item_id for b in batches}
+store/views.py:191:    unbatched_items = Item.objects.exclude(id__in=items_with_batches)
+store/views.py:192:
+store/views.py:193:    class UnbatchedDisplay:
+store/views.py:194:        def __init__(self, item):
+store/views.py:195:            self.item = item
+store/views.py:196:            self.name = item.name
+store/views.py:197:            self.amount = 0
+store/views.py:198:            self.quantity = 0
+store/views.py:199:            self.cost_price = item.cost_price
+store/views.py:200:            self.selling_price = item.selling_price
+store/views.py:201:            self.profit = item.profit
+store/views.py:202:            self.expiry_date = "No batches"
+store/views.py:203:            self.is_expired = False
+store/views.py:204:            self.total_cost = Decimal("0.00")
+store/views.py:205:            self.total_selling = Decimal("0.00")
+store/views.py:206:            self.total_profit = Decimal("0.00")
+store/views.py:207:
+store/views.py:208:    display_batches = batches + [UnbatchedDisplay(item) for item in unbatched_items]
+store/views.py:209:
+store/views.py:210:    total_cost_price = sum(b.cost_price * b.quantity for b in batches)
+store/views.py:211:    total_selling_price = sum(b.selling_price * b.quantity for b in batches)
+store/views.py:212:    total_profit = sum(b.profit * b.quantity for b in batches)
+store/views.py:213:
+store/views.py:214:    context = {
+store/views.py:215:        'batches': display_batches,
+store/views.py:216:        'total_cost_price': f"{total_cost_price:.2f}",
+store/views.py:217:        'total_selling_price': f"{total_selling_price:.2f}",
+store/views.py:218:        'total_profit': f"{total_profit:.2f}",
+store/views.py:219:    }
+store/views.py:220:    return render(request, 'store/inventory.html', context)
+store/templates/store/add.html:1:{% extends "store/layout.html" %}
+store/templates/store/add.html:2:
+store/templates/store/add.html:3:{% block title %}Add New Batch{% endblock %}
+store/templates/store/add.html:4:
+store/templates/store/add.html:5:{% block content %}
+store/templates/store/add.html:6:<section class="form-section">
+store/templates/store/add.html:7:    <div class="form-card">
+store/templates/store/add.html:8:        <h1>Add New Batch</h1>
+store/templates/store/add.html:9:
+store/templates/store/add.html:10:        <form class="medical-form" action="{% url 'add' %}" method="post">
+store/templates/store/add.html:11:            {% csrf_token %}
+store/templates/store/add.html:12:
+store/templates/store/add.html:13:            <div class="form-grid">
+store/templates/store/add.html:14:                <div class="form-field full">
+store/templates/store/add.html:15:                    <label for="item_id">Select item</label>
+store/templates/store/add.html:16:                    <div class="select-wrap">
+store/templates/store/add.html:17:                        <select id="item_id" name="item_id" required>
+store/templates/store/add.html:18:                            <option value="" disabled selected>-- Select an item --</option>
+store/templates/store/add.html:19:                            {% for item in items %}
+store/templates/store/add.html:20:                                <option value="{{ item.id }}">{{ item.name }}</option>
+store/templates/store/add.html:21:                            {% empty %}
+store/templates/store/add.html:22:                                <option value="" disabled>No items available yet</option>
+store/templates/store/add.html:23:                            {% endfor %}
+store/templates/store/add.html:24:                        </select>
+store/templates/store/add.html:25:                    </div>
+store/templates/store/add.html:26:                </div>
+store/templates/store/add.html:27:
+store/templates/store/add.html:28:                <div class="form-field">
+store/templates/store/add.html:29:                    <label for="quantity">Quantity</label>
+store/templates/store/add.html:30:                    <input id="quantity" type="number" name="quantity" min="1" placeholder="Enter batch quantity" required>
+store/templates/store/add.html:31:                </div>
+store/templates/store/add.html:32:
+store/templates/store/add.html:33:                <div class="form-field">
+store/templates/store/add.html:34:                    <label for="expiry_date">Expiry date</label>
+store/templates/store/add.html:35:                    <input id="expiry_date" type="date" name="expiry_date" required>
+store/templates/store/add.html:36:                </div>
+store/templates/store/add.html:37:            </div>
+store/templates/store/add.html:38:
+store/templates/store/add.html:39:            <button type="submit" class="primary-btn">Add Batch</button>
+store/templates/store/add.html:40:        </form>
+store/templates/store/add.html:41:    </div>
+store/templates/store/add.html:42:</section>
+store/templates/store/add.html:43:{% endblock %}
+store/templates/store/history.html:1:{% extends "store/layout.html" %}
+store/templates/store/history.html:2:
+store/templates/store/history.html:3:{% block title %}Sales History & Closing{% endblock %}
+store/templates/store/history.html:4:
+store/templates/store/history.html:5:{% block content %}
+store/templates/store/history.html:6:<section class="inventory-section">
+store/templates/store/history.html:7:  <div class="inventory-card">
+store/templates/store/history.html:8:    <div class="inventory-header">
+store/templates/store/history.html:9:      <div>
+store/templates/store/history.html:10:        <span class="eyebrow">Records & Daily Closing</span>
+store/templates/store/history.html:11:        <h1>Sales History</h1>
+store/templates/store/history.html:12:      </div>
+store/templates/store/history.html:13:    </div>
+store/templates/store/history.html:14:
+store/templates/store/history.html:15:    <!-- Daily Closing Summary Cards -->
+store/templates/store/history.html:16:    <div class="stats-grid">
+store/templates/store/history.html:17:      <div class="stat-box">
+store/templates/store/history.html:18:        <span class="stat-label">Today's Cash Total</span>
+store/templates/store/history.html:19:        <strong>{{ today_cash_total }}</strong>
+store/templates/store/history.html:20:      </div>
+store/templates/store/history.html:21:
+store/templates/store/history.html:22:      <div class="stat-box">
+store/templates/store/history.html:23:        <span class="stat-label">Today's Profit</span>
+store/templates/store/history.html:24:        <strong>{{ today_profit }}</strong>
+store/templates/store/history.html:25:      </div>
+store/templates/store/history.html:26:
+store/templates/store/history.html:27:      <div class="stat-box">
+store/templates/store/history.html:28:        <span class="stat-label">Today's Volume</span>
+store/templates/store/history.html:29:        <strong>{{ today_items_sold }} units ({{ today_sales_count }} sales)</strong>
+store/templates/store/history.html:30:      </div>
+store/templates/store/history.html:31:    </div>
+store/templates/store/history.html:32:
+store/templates/store/history.html:33:    <div class="table-wrap">
+store/templates/store/history.html:34:      <table class="inventory-table">
+store/templates/store/history.html:35:        <thead>
+store/templates/store/history.html:36:          <tr>
+store/templates/store/history.html:37:            <th>Time</th>
+store/templates/store/history.html:38:            <th>Item Name</th>
+store/templates/store/history.html:39:            <th>Quantity</th>
+store/templates/store/history.html:40:            <th>Unit Price</th>
+store/templates/store/history.html:41:            <th>Total Cash</th>
+store/templates/store/history.html:42:            <th>Profit</th>
+store/templates/store/history.html:43:          </tr>
+store/templates/store/history.html:44:        </thead>
+store/templates/store/history.html:45:        <tbody>
+store/templates/store/history.html:46:          {% for sale in sales %}
+store/templates/store/history.html:47:            <tr>
+store/templates/store/history.html:48:              <td>{{ sale.timestamp|date:"M d, Y - h:i A" }}</td>
+store/templates/store/history.html:49:              <td><strong>{{ sale.item_name }}</strong></td>
+store/templates/store/history.html:50:              <td>{{ sale.quantity }}</td>
+store/templates/store/history.html:51:              <td>{{ sale.selling_price }}</td>
+store/templates/store/history.html:52:              <td><strong>{{ sale.total_price }}</strong></td>
+store/templates/store/history.html:53:              <td style="color: #059669; font-weight: 600;">+{{ sale.profit }}</td>
+store/templates/store/history.html:54:            </tr>
+store/templates/store/history.html:55:          {% empty %}
+store/templates/store/history.html:56:            <tr>
+store/templates/store/history.html:57:              <td colspan="6" class="empty-state">No sales recorded yet. Check out a customer on the Home page to start logging sales.</td>
+store/templates/store/history.html:58:            </tr>
+store/templates/store/history.html:59:          {% endfor %}
+store/templates/store/history.html:60:        </tbody>
+store/templates/store/history.html:61:      </table>
+store/templates/store/history.html:62:    </div>
+store/templates/store/history.html:63:  </div>
+store/templates/store/history.html:64:</section>
+store/templates/store/history.html:65:{% endblock %}
+store/templates/store/home.html:1:{% extends "store/layout.html" %}
+store/templates/store/home.html:2:
+store/templates/store/home.html:3:{% block title %}Home - Checkout{% endblock %}
+store/templates/store/home.html:4:
+store/templates/store/home.html:5:{% block content %}
+store/templates/store/home.html:6:<section class="form-section">
+store/templates/store/home.html:7:  <div class="form-card">
+store/templates/store/home.html:8:    <h1>Sell Item</h1>
+store/templates/store/home.html:9:
+store/templates/store/home.html:10:    <form class="medical-form" id="sell-form" method="post" action="{% url 'home' %}">
+store/templates/store/home.html:11:      {% csrf_token %}
+store/templates/store/home.html:12:
+store/templates/store/home.html:13:      <div class="form-grid">
+store/templates/store/home.html:14:        <div class="form-field full">
+store/templates/store/home.html:15:          <label for="medicine-search">Select medicine (Search or type)</label>
+store/templates/store/home.html:16:          <div class="medicine-combobox">
+store/templates/store/home.html:17:            <input
+store/templates/store/home.html:18:              id="medicine-search"
+store/templates/store/home.html:19:              type="text"
+store/templates/store/home.html:20:              class="combobox-input"
+store/templates/store/home.html:21:              placeholder="Type medicine name (e.g., Abbott, Paracetamol)..."
+store/templates/store/home.html:22:              autocomplete="off"
+store/templates/store/home.html:23:              autofocus
+store/templates/store/home.html:24:              required
+store/templates/store/home.html:25:            />
+store/templates/store/home.html:26:            <input type="hidden" name="item_id" id="selected-item-id" required />
+store/templates/store/home.html:27:            <div id="combobox-dropdown" class="combobox-dropdown" style="display: none;"></div>
+store/templates/store/home.html:28:          </div>
+store/templates/store/home.html:29:          <small class="field-hint">
+store/templates/store/home.html:30:            ⌨️ <strong>Fast checkout:</strong> Type letters &rarr; press <kbd>&darr;</kbd> / <kbd>&uarr;</kbd> &rarr; press <kbd>Enter</kbd> to pick &rarr; enter quantity &rarr; press <kbd>Enter</kbd> to sell.
+store/templates/store/home.html:31:          </small>
+store/templates/store/home.html:32:        </div>
+store/templates/store/home.html:33:
+store/templates/store/home.html:34:        <div class="form-field full">
+store/templates/store/home.html:35:          <label for="quantity">Quantity to sell</label>
+store/templates/store/home.html:36:          <input
+store/templates/store/home.html:37:            id="quantity"
+store/templates/store/home.html:38:            type="number"
+store/templates/store/home.html:39:            name="quantity"
+store/templates/store/home.html:40:            min="1"
+store/templates/store/home.html:41:            value="1"
+store/templates/store/home.html:42:            placeholder="Enter quantity to sell"
+store/templates/store/home.html:43:            required
+store/templates/store/home.html:44:          />
+store/templates/store/home.html:45:        </div>
+store/templates/store/home.html:46:      </div>
+store/templates/store/home.html:47:
+store/templates/store/home.html:48:      <button type="submit" id="submit-btn" class="primary-btn">Complete Sale</button>
+store/templates/store/home.html:49:    </form>
+store/templates/store/home.html:50:  </div>
+store/templates/store/home.html:51:</section>
+store/templates/store/home.html:52:
+store/templates/store/home.html:53:<!-- Item metadata for instant zero-latency client search -->
+store/templates/store/home.html:54:<script id="items-json" type="application/json">
+store/templates/store/home.html:55:[
+store/templates/store/home.html:56:  {% for item in items %}
+store/templates/store/home.html:57:  {
+store/templates/store/home.html:58:    "id": "{{ item.id }}",
+store/templates/store/home.html:59:    "name": "{{ item.name|escapejs }}",
+store/templates/store/home.html:60:    "unexpired": {{ item.unexpired_quantity }},
+store/templates/store/home.html:61:    "expired": {{ item.expired_quantity }},
+store/templates/store/home.html:62:    "price": "{{ item.selling_price }}"
+store/templates/store/home.html:63:  }{% if not forloop.last %},{% endif %}
+store/templates/store/home.html:64:  {% endfor %}
+store/templates/store/home.html:65:]
+store/templates/store/home.html:66:</script>
+store/templates/store/home.html:67:
+store/templates/store/home.html:68:<script>
+store/templates/store/home.html:69:document.addEventListener('DOMContentLoaded', function () {
+store/templates/store/home.html:70:  const itemsJsonEl = document.getElementById('items-json');
+store/templates/store/home.html:71:  const itemsData = itemsJsonEl ? JSON.parse(itemsJsonEl.textContent) : [];
+store/templates/store/home.html:72:  const searchInput = document.getElementById('medicine-search');
+store/templates/store/home.html:73:  const hiddenInput = document.getElementById('selected-item-id');
+store/templates/store/home.html:74:  const dropdown = document.getElementById('combobox-dropdown');
+store/templates/store/home.html:75:  const quantityInput = document.getElementById('quantity');
+store/templates/store/home.html:76:
+store/templates/store/home.html:77:  let activeIndex = -1;
+store/templates/store/home.html:78:  let filteredItems = [];
+store/templates/store/home.html:79:
+store/templates/store/home.html:80:  function renderDropdown(items) {
+store/templates/store/home.html:81:    filteredItems = items;
+store/templates/store/home.html:82:    activeIndex = items.length > 0 ? 0 : -1;
+store/templates/store/home.html:83:    dropdown.innerHTML = '';
+store/templates/store/home.html:84:
+store/templates/store/home.html:85:    if (items.length === 0) {
+store/templates/store/home.html:86:      dropdown.innerHTML = '<div style="padding: 10px 14px; color: var(--muted); font-size: 0.9rem;">No matching medicines found</div>';
+store/templates/store/home.html:87:      dropdown.style.display = 'block';
+store/templates/store/home.html:88:      return;
+store/templates/store/home.html:89:    }
+store/templates/store/home.html:90:
+store/templates/store/home.html:91:    items.forEach((item, index) => {
+store/templates/store/home.html:92:      const itemEl = document.createElement('div');
+store/templates/store/home.html:93:      itemEl.className = 'combobox-item' + (index === 0 ? ' active' : '');
+store/templates/store/home.html:94:      itemEl.dataset.index = index;
+store/templates/store/home.html:95:
+store/templates/store/home.html:96:      const stockBadge = item.unexpired > 0
+store/templates/store/home.html:97:        ? `<span class="badge-stock">${item.unexpired} in stock</span>`
+store/templates/store/home.html:98:        : `<span class="badge-expired">Out of stock</span>`;
+store/templates/store/home.html:99:
+store/templates/store/home.html:100:      const expiredBadge = item.expired > 0
+store/templates/store/home.html:101:        ? `<span class="badge-expired">${item.expired} expired</span>`
+store/templates/store/home.html:102:        : '';
+store/templates/store/home.html:103:
+store/templates/store/home.html:104:      itemEl.innerHTML = `
+store/templates/store/home.html:105:        <span class="combobox-item-name">${item.name}</span>
+store/templates/store/home.html:106:        <span class="combobox-item-meta">
+store/templates/store/home.html:107:          ${stockBadge}
+store/templates/store/home.html:108:          ${expiredBadge}
+store/templates/store/home.html:109:          <strong>${item.price}</strong>
+store/templates/store/home.html:110:        </span>
+store/templates/store/home.html:111:      `;
+store/templates/store/home.html:112:
+store/templates/store/home.html:113:      itemEl.addEventListener('click', function () {
+store/templates/store/home.html:114:        selectItem(item);
+store/templates/store/home.html:115:      });
+store/templates/store/home.html:116:
+store/templates/store/home.html:117:      dropdown.appendChild(itemEl);
+store/templates/store/home.html:118:    });
+store/templates/store/home.html:119:
+store/templates/store/home.html:120:    dropdown.style.display = 'block';
+store/templates/store/home.html:121:  }
+store/templates/store/home.html:122:
+store/templates/store/home.html:123:  function selectItem(item) {
+store/templates/store/home.html:124:    hiddenInput.value = item.id;
+store/templates/store/home.html:125:    searchInput.value = item.name;
+store/templates/store/home.html:126:    dropdown.style.display = 'none';
+store/templates/store/home.html:127:    quantityInput.focus();
+store/templates/store/home.html:128:    quantityInput.select();
+store/templates/store/home.html:129:  }
+store/templates/store/home.html:130:
+store/templates/store/home.html:131:  searchInput.addEventListener('input', function () {
+store/templates/store/home.html:132:    const query = this.value.trim().toLowerCase();
+store/templates/store/home.html:133:    hiddenInput.value = '';
+store/templates/store/home.html:134:
+store/templates/store/home.html:135:    if (!query) {
+store/templates/store/home.html:136:      renderDropdown(itemsData);
+store/templates/store/home.html:137:      return;
+store/templates/store/home.html:138:    }
+store/templates/store/home.html:139:
+store/templates/store/home.html:140:    const matches = itemsData.filter(item =>
+store/templates/store/home.html:141:      item.name.toLowerCase().includes(query)
+store/templates/store/home.html:142:    );
+store/templates/store/home.html:143:    renderDropdown(matches);
+store/templates/store/home.html:144:  });
+store/templates/store/home.html:145:
+store/templates/store/home.html:146:  searchInput.addEventListener('focus', function () {
+store/templates/store/home.html:147:    const query = this.value.trim().toLowerCase();
+store/templates/store/home.html:148:    if (!query) {
+store/templates/store/home.html:149:      renderDropdown(itemsData);
+store/templates/store/home.html:150:    } else {
+store/templates/store/home.html:151:      const matches = itemsData.filter(item =>
+store/templates/store/home.html:152:        item.name.toLowerCase().includes(query)
+store/templates/store/home.html:153:      );
+store/templates/store/home.html:154:      renderDropdown(matches);
+store/templates/store/home.html:155:    }
+store/templates/store/home.html:156:  });
+store/templates/store/home.html:157:
+store/templates/store/home.html:158:  searchInput.addEventListener('keydown', function (e) {
+store/templates/store/home.html:159:    const items = dropdown.querySelectorAll('.combobox-item');
+store/templates/store/home.html:160:    if (!items.length || dropdown.style.display === 'none') {
+store/templates/store/home.html:161:      if (e.key === 'ArrowDown') {
+store/templates/store/home.html:162:        renderDropdown(itemsData);
+store/templates/store/home.html:163:        e.preventDefault();
+store/templates/store/home.html:164:      }
+store/templates/store/home.html:165:      return;
+store/templates/store/home.html:166:    }
+store/templates/store/home.html:167:
+store/templates/store/home.html:168:    if (e.key === 'ArrowDown') {
+store/templates/store/home.html:169:      e.preventDefault();
+store/templates/store/home.html:170:      activeIndex = (activeIndex + 1) % items.length;
+store/templates/store/home.html:171:      updateActiveItem(items);
+store/templates/store/home.html:172:    } else if (e.key === 'ArrowUp') {
+store/templates/store/home.html:173:      e.preventDefault();
+store/templates/store/home.html:174:      activeIndex = (activeIndex - 1 + items.length) % items.length;
+store/templates/store/home.html:175:      updateActiveItem(items);
+store/templates/store/home.html:176:    } else if (e.key === 'Enter') {
+store/templates/store/home.html:177:      e.preventDefault();
+store/templates/store/home.html:178:      if (activeIndex >= 0 && activeIndex < filteredItems.length) {
+store/templates/store/home.html:179:        selectItem(filteredItems[activeIndex]);
+store/templates/store/home.html:180:      }
+store/templates/store/home.html:181:    } else if (e.key === 'Escape') {
+store/templates/store/home.html:182:      dropdown.style.display = 'none';
+store/templates/store/home.html:183:    }
+store/templates/store/home.html:184:  });
+store/templates/store/home.html:185:
+store/templates/store/home.html:186:  function updateActiveItem(items) {
+store/templates/store/home.html:187:    items.forEach((item, idx) => {
+store/templates/store/home.html:188:      if (idx === activeIndex) {
+store/templates/store/home.html:189:        item.classList.add('active');
+store/templates/store/home.html:190:        item.scrollIntoView({ block: 'nearest' });
+store/templates/store/home.html:191:      } else {
+store/templates/store/home.html:192:        item.classList.remove('active');
+store/templates/store/home.html:193:      }
+store/templates/store/home.html:194:    });
+store/templates/store/home.html:195:  }
+store/templates/store/home.html:196:
+store/templates/store/home.html:197:  document.addEventListener('click', function (e) {
+store/templates/store/home.html:198:    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+store/templates/store/home.html:199:      dropdown.style.display = 'none';
+store/templates/store/home.html:200:    }
+store/templates/store/home.html:201:  });
+store/templates/store/home.html:202:});
+store/templates/store/home.html:203:</script>
+store/templates/store/home.html:204:{% endblock %}
+store/templates/store/inventory.html:1:{% extends "store/layout.html" %}
+store/templates/store/inventory.html:2:
+store/templates/store/inventory.html:3:{% block title %}Inventory{% endblock %}
+store/templates/store/inventory.html:4:
+store/templates/store/inventory.html:5:{% block content %}
+store/templates/store/inventory.html:6:<section class="inventory-section">
+store/templates/store/inventory.html:7:  <div class="inventory-card">
+store/templates/store/inventory.html:8:    <div class="inventory-header">
+store/templates/store/inventory.html:9:      <div>
+store/templates/store/inventory.html:10:        <span class="eyebrow">Overview</span>
+store/templates/store/inventory.html:11:        <h1>Inventory</h1>
+store/templates/store/inventory.html:12:      </div>
+store/templates/store/inventory.html:13:    </div>
+store/templates/store/inventory.html:14:
+store/templates/store/inventory.html:15:    <div class="stats-grid">
+store/templates/store/inventory.html:16:      <div class="stat-box">
+store/templates/store/inventory.html:17:        <span class="stat-label">Total Cost Price</span>
+store/templates/store/inventory.html:18:        <strong>{{ total_cost_price }}</strong>
+store/templates/store/inventory.html:19:      </div>
+store/templates/store/inventory.html:20:
+store/templates/store/inventory.html:21:      <div class="stat-box">
+store/templates/store/inventory.html:22:        <span class="stat-label">Total Selling Price</span>
+store/templates/store/inventory.html:23:        <strong>{{ total_selling_price }}</strong>
+store/templates/store/inventory.html:24:      </div>
+store/templates/store/inventory.html:25:
+store/templates/store/inventory.html:26:      <div class="stat-box">
+store/templates/store/inventory.html:27:        <span class="stat-label">Total Profit</span>
+store/templates/store/inventory.html:28:        <strong>{{ total_profit }}</strong>
+store/templates/store/inventory.html:29:      </div>
+store/templates/store/inventory.html:30:    </div>
+store/templates/store/inventory.html:31:
+store/templates/store/inventory.html:32:    <div class="table-wrap">
+store/templates/store/inventory.html:33:      <table class="inventory-table">
+store/templates/store/inventory.html:34:        <thead>
+store/templates/store/inventory.html:35:          <tr>
+store/templates/store/inventory.html:36:            <th>Item Name</th>
+store/templates/store/inventory.html:37:            <th>Quantity</th>
+store/templates/store/inventory.html:38:            <th>Cost Price</th>
+store/templates/store/inventory.html:39:            <th>Selling Price</th>
+store/templates/store/inventory.html:40:            <th>Profit</th>
+store/templates/store/inventory.html:41:            <th>Expiry Date</th>
+store/templates/store/inventory.html:42:          </tr>
+store/templates/store/inventory.html:43:        </thead>
+store/templates/store/inventory.html:44:        <tbody>
+store/templates/store/inventory.html:45:          {% for batch in batches %}
+store/templates/store/inventory.html:46:            <tr>
+store/templates/store/inventory.html:47:              <td>{{ batch.name }}</td>
+store/templates/store/inventory.html:48:              <td>{{ batch.amount }}</td>
+store/templates/store/inventory.html:49:              <td>{{ batch.cost_price }}</td>
+store/templates/store/inventory.html:50:              <td>{{ batch.selling_price }}</td>
+store/templates/store/inventory.html:51:              <td>{{ batch.profit }}</td>
+store/templates/store/inventory.html:52:              <td>
+store/templates/store/inventory.html:53:                {{ batch.expiry_date }}
+store/templates/store/inventory.html:54:                {% if batch.is_expired %}
+store/templates/store/inventory.html:55:                  <span class="badge-expired">Expired</span>
+store/templates/store/inventory.html:56:                {% endif %}
+store/templates/store/inventory.html:57:              </td>
+store/templates/store/inventory.html:58:            </tr>
+store/templates/store/inventory.html:59:          {% empty %}
+store/templates/store/inventory.html:60:            <tr>
+store/templates/store/inventory.html:61:              <td colspan="6" class="empty-state">No batches available</td>
+store/templates/store/inventory.html:62:            </tr>
+store/templates/store/inventory.html:63:          {% endfor %}
+store/templates/store/inventory.html:64:        </tbody>
+store/templates/store/inventory.html:65:      </table>
+store/templates/store/inventory.html:66:    </div>
+store/templates/store/inventory.html:67:  </div>
+store/templates/store/inventory.html:68:</section>
+store/templates/store/inventory.html:69:{% endblock %}
+store/templates/store/layout.html:1:{% load static %}
+store/templates/store/layout.html:2:<!DOCTYPE html>
+store/templates/store/layout.html:3:<html lang="en">
+store/templates/store/layout.html:4:  <head>
+store/templates/store/layout.html:5:    <meta charset="UTF-8" />
+store/templates/store/layout.html:6:    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+store/templates/store/layout.html:7:    <title>{% block title %}Times Medical{% endblock %}</title>
+store/templates/store/layout.html:8:    <link rel="stylesheet" href="{% static 'store/styles.css' %}" />
+store/templates/store/layout.html:9:    {% block extra_head %}{% endblock %}
+store/templates/store/layout.html:10:  </head>
+store/templates/store/layout.html:11:  <body>
+store/templates/store/layout.html:12:    <header class="site-header">
+store/templates/store/layout.html:13:      <div class="container nav-wrap">
+store/templates/store/layout.html:14:        <div class="brand-wrap">
+store/templates/store/layout.html:15:          <div class="brand-mark">TM</div>
+store/templates/store/layout.html:16:          <div>
+store/templates/store/layout.html:17:            <div class="brand-name">Times Medical</div>
+store/templates/store/layout.html:18:            <div class="brand-sub">Medical Supply & Care</div>
+store/templates/store/layout.html:19:          </div>
+store/templates/store/layout.html:20:        </div>
+store/templates/store/layout.html:21:
+store/templates/store/layout.html:22:        <nav class="top-nav">
+store/templates/store/layout.html:23:          <a href="{% url 'home' %}">Home</a>
+store/templates/store/layout.html:24:          <a href="{% url 'new' %}">New Item</a>
+store/templates/store/layout.html:25:          <a href="{% url 'add' %}">Add Batch</a>
+store/templates/store/layout.html:26:          <a href="{% url 'history' %}">History</a>
+store/templates/store/layout.html:27:          <a href="{% url 'inventory' %}">Inventory</a>
+store/templates/store/layout.html:28:        </nav>
+store/templates/store/layout.html:29:      </div>
+store/templates/store/layout.html:30:    </header>
+store/templates/store/layout.html:31:
+store/templates/store/layout.html:32:    <main class="page-shell">
+store/templates/store/layout.html:33:      {% if messages %}
+store/templates/store/layout.html:34:        <div class="container messages-wrap">
+store/templates/store/layout.html:35:          {% for message in messages %}
+store/templates/store/layout.html:36:            <div class="alert alert-{{ message.tags }}">
+store/templates/store/layout.html:37:              {{ message }}
+store/templates/store/layout.html:38:            </div>
+store/templates/store/layout.html:39:          {% endfor %}
+store/templates/store/layout.html:40:        </div>
+store/templates/store/layout.html:41:      {% endif %}
+store/templates/store/layout.html:42:      {% block content %}{% endblock %}
+store/templates/store/layout.html:43:    </main>
+store/templates/store/layout.html:44:  </body>
+store/templates/store/layout.html:45:</html>
+store/templates/store/new.html:1:{% extends "store/layout.html" %}
+store/templates/store/new.html:2:
+store/templates/store/new.html:3:{% block title %}Create New Item{% endblock %}
+store/templates/store/new.html:4:
+store/templates/store/new.html:5:{% block content %}
+store/templates/store/new.html:6:<section class="form-section">
+store/templates/store/new.html:7:  <div class="form-card">
+store/templates/store/new.html:8:    <h1>Create New Item</h1>
+store/templates/store/new.html:9:
+store/templates/store/new.html:10:    <form class="medical-form" action="{% url 'new' %}" method="post">
+store/templates/store/new.html:11:      {% csrf_token %}
+store/templates/store/new.html:12:
+store/templates/store/new.html:13:      <div class="form-grid">
+store/templates/store/new.html:14:        <div class="form-field full">
+store/templates/store/new.html:15:          <label for="name">Item name</label>
+store/templates/store/new.html:16:          <input id="name" type="text" name="name" placeholder="Enter item name" required />
+store/templates/store/new.html:17:        </div>
+store/templates/store/new.html:18:
+store/templates/store/new.html:19:        <div class="form-field full">
+store/templates/store/new.html:20:          <label for="description">Description</label>
+store/templates/store/new.html:21:          <textarea id="description" name="description" placeholder="Enter item description" required></textarea>
+store/templates/store/new.html:22:        </div>
+store/templates/store/new.html:23:
+store/templates/store/new.html:24:        <div class="form-field">
+store/templates/store/new.html:25:          <label for="quantity">Quantity</label>
+store/templates/store/new.html:26:          <input id="quantity" type="number" name="quantity" placeholder="Enter item quantity" required />
+store/templates/store/new.html:27:        </div>
+store/templates/store/new.html:28:
+store/templates/store/new.html:29:        <div class="form-field">
+store/templates/store/new.html:30:          <label for="cost_price">Cost price</label>
+store/templates/store/new.html:31:          <input id="cost_price" step="0.01" type="number" name="cost_price" placeholder="Enter cost price" required />
+store/templates/store/new.html:32:        </div>
+store/templates/store/new.html:33:
+store/templates/store/new.html:34:        <div class="form-field">
+store/templates/store/new.html:35:          <label for="sale_price">Sale price</label>
+store/templates/store/new.html:36:          <input id="sale_price" step="0.01" type="number" name="sale_price" placeholder="Enter sale price" required />
+store/templates/store/new.html:37:        </div>
+store/templates/store/new.html:38:
+store/templates/store/new.html:39:        <div class="form-field full">
+store/templates/store/new.html:40:          <label for="expiry_date">Expiry date</label>
+store/templates/store/new.html:41:          <input id="expiry_date" type="date" name="expiry_date" required />
+store/templates/store/new.html:42:        </div>
+store/templates/store/new.html:43:      </div>
+store/templates/store/new.html:44:
+store/templates/store/new.html:45:      <button type="submit" class="primary-btn">Create Item</button>
+store/templates/store/new.html:46:    </form>
+store/templates/store/new.html:47:  </div>
+store/templates/store/new.html:48:</section>
+store/templates/store/new.html:49:{% endblock %}
+store/static/store/styles.css:1::root {
+store/static/store/styles.css:2:  --bg: #f3f7fb;
+store/static/store/styles.css:3:  --panel: #ffffff;
+store/static/store/styles.css:4:  --panel-soft: #f8fafc;
+store/static/store/styles.css:5:  --primary: #1d4ed8;
+store/static/store/styles.css:6:  --primary-dark: #163db8;
+store/static/store/styles.css:7:  --accent: #3b82f6;
+store/static/store/styles.css:8:  --text: #0f172a;
+store/static/store/styles.css:9:  --muted: #64748b;
+store/static/store/styles.css:10:  --border: #e2e8f0;
+store/static/store/styles.css:11:  --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+store/static/store/styles.css:12:  --radius: 18px;
+store/static/store/styles.css:13:}
+store/static/store/styles.css:14:
+store/static/store/styles.css:15:* {
+store/static/store/styles.css:16:  box-sizing: border-box;
+store/static/store/styles.css:17:}
+store/static/store/styles.css:18:
+store/static/store/styles.css:19:body {
+store/static/store/styles.css:20:  margin: 0;
+store/static/store/styles.css:21:  font-family: "Segoe UI", Arial, sans-serif;
+store/static/store/styles.css:22:  background: linear-gradient(180deg, #edf4ff 0%, var(--bg) 100%);
+store/static/store/styles.css:23:  color: var(--text);
+store/static/store/styles.css:24:  line-height: 1.6;
+store/static/store/styles.css:25:}
+store/static/store/styles.css:26:
+store/static/store/styles.css:27:a {
+store/static/store/styles.css:28:  text-decoration: none;
+store/static/store/styles.css:29:  color: inherit;
+store/static/store/styles.css:30:}
+store/static/store/styles.css:31:
+store/static/store/styles.css:32:img {
+store/static/store/styles.css:33:  max-width: 100%;
+store/static/store/styles.css:34:  display: block;
+store/static/store/styles.css:35:}
+store/static/store/styles.css:36:
+store/static/store/styles.css:37:.container {
+store/static/store/styles.css:38:  width: min(1100px, calc(100% - 32px));
+store/static/store/styles.css:39:  margin: 0 auto;
+store/static/store/styles.css:40:}
+store/static/store/styles.css:41:
+store/static/store/styles.css:42:.site-header {
+store/static/store/styles.css:43:  background: rgba(255, 255, 255, 0.9);
+store/static/store/styles.css:44:  border-bottom: 1px solid var(--border);
+store/static/store/styles.css:45:  position: sticky;
+store/static/store/styles.css:46:  top: 0;
+store/static/store/styles.css:47:  z-index: 10;
+store/static/store/styles.css:48:  backdrop-filter: blur(10px);
+store/static/store/styles.css:49:}
+store/static/store/styles.css:50:
+store/static/store/styles.css:51:.nav-wrap {
+store/static/store/styles.css:52:  display: flex;
+store/static/store/styles.css:53:  align-items: center;
+store/static/store/styles.css:54:  justify-content: space-between;
+store/static/store/styles.css:55:  min-height: 72px;
+store/static/store/styles.css:56:}
+store/static/store/styles.css:57:
+store/static/store/styles.css:58:.brand-wrap {
+store/static/store/styles.css:59:  display: flex;
+store/static/store/styles.css:60:  align-items: center;
+store/static/store/styles.css:61:  gap: 14px;
+store/static/store/styles.css:62:}
+store/static/store/styles.css:63:
+store/static/store/styles.css:64:.brand-mark {
+store/static/store/styles.css:65:  width: 42px;
+store/static/store/styles.css:66:  height: 42px;
+store/static/store/styles.css:67:  display: grid;
+store/static/store/styles.css:68:  place-items: center;
+store/static/store/styles.css:69:  background: linear-gradient(135deg, var(--primary), var(--accent));
+store/static/store/styles.css:70:  color: white;
+store/static/store/styles.css:71:  border-radius: 12px;
+store/static/store/styles.css:72:  font-weight: 700;
+store/static/store/styles.css:73:  box-shadow: var(--shadow);
+store/static/store/styles.css:74:}
+store/static/store/styles.css:75:
+store/static/store/styles.css:76:.brand-name {
+store/static/store/styles.css:77:  font-size: 1.05rem;
+store/static/store/styles.css:78:  font-weight: 700;
+store/static/store/styles.css:79:}
+store/static/store/styles.css:80:
+store/static/store/styles.css:81:.brand-sub {
+store/static/store/styles.css:82:  font-size: 0.74rem;
+store/static/store/styles.css:83:  color: var(--muted);
+store/static/store/styles.css:84:}
+store/static/store/styles.css:85:
+store/static/store/styles.css:86:.top-nav {
+store/static/store/styles.css:87:  display: flex;
+store/static/store/styles.css:88:  align-items: center;
+store/static/store/styles.css:89:  gap: 18px;
+store/static/store/styles.css:90:  color: var(--muted);
+store/static/store/styles.css:91:  font-weight: 600;
+store/static/store/styles.css:92:}
+store/static/store/styles.css:93:
+store/static/store/styles.css:94:.top-nav a:hover {
+store/static/store/styles.css:95:  color: var(--primary);
+store/static/store/styles.css:96:}
+store/static/store/styles.css:97:
+store/static/store/styles.css:98:.page-shell {
+store/static/store/styles.css:99:  padding: 48px 0 80px;
+store/static/store/styles.css:100:}
+store/static/store/styles.css:101:
+store/static/store/styles.css:102:.form-section {
+store/static/store/styles.css:103:  width: min(800px, calc(100% - 32px));
+store/static/store/styles.css:104:  margin: 0 auto;
+store/static/store/styles.css:105:}
+store/static/store/styles.css:106:
+store/static/store/styles.css:107:.form-card {
+store/static/store/styles.css:108:  background: rgba(255, 255, 255, 0.96);
+store/static/store/styles.css:109:  border: 1px solid var(--border);
+store/static/store/styles.css:110:  border-radius: 26px;
+store/static/store/styles.css:111:  box-shadow: var(--shadow);
+store/static/store/styles.css:112:  padding: 36px;
+store/static/store/styles.css:113:}
+store/static/store/styles.css:114:
+store/static/store/styles.css:115:.form-card h1 {
+store/static/store/styles.css:116:  margin: 0 0 22px;
+store/static/store/styles.css:117:  font-size: clamp(2rem, 4vw, 2.8rem);
+store/static/store/styles.css:118:  line-height: 1.2;
+store/static/store/styles.css:119:}
+store/static/store/styles.css:120:
+store/static/store/styles.css:121:.medical-form {
+store/static/store/styles.css:122:  display: grid;
+store/static/store/styles.css:123:  gap: 18px;
+store/static/store/styles.css:124:}
+store/static/store/styles.css:125:
+store/static/store/styles.css:126:.form-grid {
+store/static/store/styles.css:127:  display: grid;
+store/static/store/styles.css:128:  grid-template-columns: repeat(2, minmax(0, 1fr));
+store/static/store/styles.css:129:  gap: 18px;
+store/static/store/styles.css:130:}
+store/static/store/styles.css:131:
+store/static/store/styles.css:132:.form-field {
+store/static/store/styles.css:133:  display: grid;
+store/static/store/styles.css:134:  gap: 8px;
+store/static/store/styles.css:135:}
+store/static/store/styles.css:136:
+store/static/store/styles.css:137:.form-field.full {
+store/static/store/styles.css:138:  grid-column: 1 / -1;
+store/static/store/styles.css:139:}
+store/static/store/styles.css:140:
+store/static/store/styles.css:141:.form-field label {
+store/static/store/styles.css:142:  font-size: 0.9rem;
+store/static/store/styles.css:143:  font-weight: 600;
+store/static/store/styles.css:144:  color: var(--text);
+store/static/store/styles.css:145:}
+store/static/store/styles.css:146:
+store/static/store/styles.css:147:.form-field input,
+store/static/store/styles.css:148:.form-field textarea {
+store/static/store/styles.css:149:  width: 100%;
+store/static/store/styles.css:150:  border: 1px solid var(--border);
+store/static/store/styles.css:151:  background: var(--panel-soft);
+store/static/store/styles.css:152:  border-radius: 12px;
+store/static/store/styles.css:153:  padding: 0.9rem 1rem;
+store/static/store/styles.css:154:  color: var(--text);
+store/static/store/styles.css:155:  font: inherit;
+store/static/store/styles.css:156:  outline: none;
+store/static/store/styles.css:157:  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+store/static/store/styles.css:158:}
+store/static/store/styles.css:159:
+store/static/store/styles.css:160:.form-field textarea {
+store/static/store/styles.css:161:  min-height: 130px;
+store/static/store/styles.css:162:  resize: vertical;
+store/static/store/styles.css:163:}
+store/static/store/styles.css:164:
+store/static/store/styles.css:165:.form-field input:focus,
+store/static/store/styles.css:166:.form-field textarea:focus {
+store/static/store/styles.css:167:  border-color: rgba(59, 130, 246, 0.8);
+store/static/store/styles.css:168:  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+store/static/store/styles.css:169:  background: white;
+store/static/store/styles.css:170:}
+store/static/store/styles.css:171:
+store/static/store/styles.css:172:.primary-btn {
+store/static/store/styles.css:173:  border: none;
+store/static/store/styles.css:174:  border-radius: 12px;
+store/static/store/styles.css:175:  padding: 0.95rem 1.2rem;
+store/static/store/styles.css:176:  background: linear-gradient(135deg, var(--primary), var(--accent));
+store/static/store/styles.css:177:  color: white;
+store/static/store/styles.css:178:  font-weight: 700;
+store/static/store/styles.css:179:  cursor: pointer;
+store/static/store/styles.css:180:  transition: transform 0.2s ease, box-shadow 0.2s ease;
+store/static/store/styles.css:181:  box-shadow: 0 14px 26px rgba(37, 99, 235, 0.22);
+store/static/store/styles.css:182:}
+store/static/store/styles.css:183:
+store/static/store/styles.css:184:.primary-btn:hover {
+store/static/store/styles.css:185:  transform: translateY(-1px);
+store/static/store/styles.css:186:}
+store/static/store/styles.css:187:
+store/static/store/styles.css:188:@media (max-width: 700px) {
+store/static/store/styles.css:189:  .form-grid {
+store/static/store/styles.css:190:    grid-template-columns: 1fr;
+store/static/store/styles.css:191:  }
+store/static/store/styles.css:192:
+store/static/store/styles.css:193:  .nav-wrap {
+store/static/store/styles.css:194:    flex-direction: column;
+store/static/store/styles.css:195:    justify-content: center;
+store/static/store/styles.css:196:    gap: 10px;
+store/static/store/styles.css:197:    padding: 12px 0;
+store/static/store/styles.css:198:  }
+store/static/store/styles.css:199:
+store/static/store/styles.css:200:  .top-nav {
+store/static/store/styles.css:201:    gap: 12px;
+store/static/store/styles.css:202:    font-size: 0.9rem;
+store/static/store/styles.css:203:  }
+store/static/store/styles.css:204:
+store/static/store/styles.css:205:  .form-card {
+store/static/store/styles.css:206:    padding: 24px 18px;
+store/static/store/styles.css:207:  }
+store/static/store/styles.css:208:}
+store/static/store/styles.css:209:.inventory-section {
+store/static/store/styles.css:210:  width: min(1100px, calc(100% - 32px));
+store/static/store/styles.css:211:  margin: 0 auto;
+store/static/store/styles.css:212:}
+store/static/store/styles.css:213:
+store/static/store/styles.css:214:.inventory-card {
+store/static/store/styles.css:215:  background: rgba(255, 255, 255, 0.96);
+store/static/store/styles.css:216:  border: 1px solid var(--border);
+store/static/store/styles.css:217:  border-radius: 26px;
+store/static/store/styles.css:218:  box-shadow: var(--shadow);
+store/static/store/styles.css:219:  padding: 32px;
+store/static/store/styles.css:220:}
+store/static/store/styles.css:221:
+store/static/store/styles.css:222:.inventory-header {
+store/static/store/styles.css:223:  margin-bottom: 24px;
+store/static/store/styles.css:224:}
+store/static/store/styles.css:225:
+store/static/store/styles.css:226:.eyebrow {
+store/static/store/styles.css:227:  display: inline-block;
+store/static/store/styles.css:228:  padding: 0.45rem 0.8rem;
+store/static/store/styles.css:229:  border-radius: 999px;
+store/static/store/styles.css:230:  background: #eff6ff;
+store/static/store/styles.css:231:  color: var(--primary);
+store/static/store/styles.css:232:  font-size: 0.72rem;
+store/static/store/styles.css:233:  font-weight: 700;
+store/static/store/styles.css:234:  letter-spacing: 0.04em;
+store/static/store/styles.css:235:  text-transform: uppercase;
+store/static/store/styles.css:236:}
+store/static/store/styles.css:237:
+store/static/store/styles.css:238:.inventory-header h1 {
+store/static/store/styles.css:239:  margin: 12px 0 0;
+store/static/store/styles.css:240:  font-size: clamp(2rem, 3vw, 2.8rem);
+store/static/store/styles.css:241:  line-height: 1.2;
+store/static/store/styles.css:242:}
+store/static/store/styles.css:243:
+store/static/store/styles.css:244:.stats-grid {
+store/static/store/styles.css:245:  display: grid;
+store/static/store/styles.css:246:  grid-template-columns: repeat(3, minmax(0, 1fr));
+store/static/store/styles.css:247:  gap: 18px;
+store/static/store/styles.css:248:  margin-bottom: 28px;
+store/static/store/styles.css:249:}
+store/static/store/styles.css:250:
+store/static/store/styles.css:251:.stat-box {
+store/static/store/styles.css:252:  background: linear-gradient(180deg, #f8fbff, #f3f7ff);
+store/static/store/styles.css:253:  border: 1px solid var(--border);
+store/static/store/styles.css:254:  border-radius: 18px;
+store/static/store/styles.css:255:  padding: 18px 20px;
+store/static/store/styles.css:256:}
+store/static/store/styles.css:257:
+store/static/store/styles.css:258:.stat-label {
+store/static/store/styles.css:259:  display: block;
+store/static/store/styles.css:260:  font-size: 0.8rem;
+store/static/store/styles.css:261:  color: var(--muted);
+store/static/store/styles.css:262:  margin-bottom: 6px;
+store/static/store/styles.css:263:  font-weight: 600;
+store/static/store/styles.css:264:}
+store/static/store/styles.css:265:
+store/static/store/styles.css:266:.stat-box strong {
+store/static/store/styles.css:267:  display: block;
+store/static/store/styles.css:268:  font-size: clamp(1.2rem, 2vw, 1.8rem);
+store/static/store/styles.css:269:  color: var(--text);
+store/static/store/styles.css:270:}
+store/static/store/styles.css:271:
+store/static/store/styles.css:272:.table-wrap {
+store/static/store/styles.css:273:  overflow-x: auto;
+store/static/store/styles.css:274:  border: 1px solid var(--border);
+store/static/store/styles.css:275:  border-radius: 18px;
+store/static/store/styles.css:276:}
+store/static/store/styles.css:277:
+store/static/store/styles.css:278:.inventory-table {
+store/static/store/styles.css:279:  width: 100%;
+store/static/store/styles.css:280:  border-collapse: collapse;
+store/static/store/styles.css:281:  background: white;
+store/static/store/styles.css:282:}
+store/static/store/styles.css:283:
+store/static/store/styles.css:284:.inventory-table th,
+store/static/store/styles.css:285:.inventory-table td {
+store/static/store/styles.css:286:  padding: 14px 16px;
+store/static/store/styles.css:287:  text-align: left;
+store/static/store/styles.css:288:  border-bottom: 1px solid var(--border);
+store/static/store/styles.css:289:}
+store/static/store/styles.css:290:
+store/static/store/styles.css:291:.inventory-table thead th {
+store/static/store/styles.css:292:  background: #f8fafc;
+store/static/store/styles.css:293:  font-size: 0.82rem;
+store/static/store/styles.css:294:  letter-spacing: 0.03em;
+store/static/store/styles.css:295:  text-transform: uppercase;
+store/static/store/styles.css:296:  color: var(--muted);
+store/static/store/styles.css:297:}
+store/static/store/styles.css:298:
+store/static/store/styles.css:299:.inventory-table tbody tr:hover {
+store/static/store/styles.css:300:  background: #f8fbff;
+store/static/store/styles.css:301:}
+store/static/store/styles.css:302:
+store/static/store/styles.css:303:.empty-state {
+store/static/store/styles.css:304:  text-align: center;
+store/static/store/styles.css:305:  color: var(--muted);
+store/static/store/styles.css:306:  padding: 24px;
+store/static/store/styles.css:307:}
+store/static/store/styles.css:308:
+store/static/store/styles.css:309:@media (max-width: 700px) {
+store/static/store/styles.css:310:  .stats-grid {
+store/static/store/styles.css:311:    grid-template-columns: 1fr;
+store/static/store/styles.css:312:  }
+store/static/store/styles.css:313:
+store/static/store/styles.css:314:  .inventory-card {
+store/static/store/styles.css:315:    padding: 22px 16px;
+store/static/store/styles.css:316:  }
+store/static/store/styles.css:317:}
+store/static/store/styles.css:318:
+store/static/store/styles.css:319:.messages-wrap {
+store/static/store/styles.css:320:  margin-bottom: 24px;
+store/static/store/styles.css:321:}
+store/static/store/styles.css:322:
+store/static/store/styles.css:323:.alert {
+store/static/store/styles.css:324:  padding: 14px 18px;
+store/static/store/styles.css:325:  border-radius: 12px;
+store/static/store/styles.css:326:  font-weight: 600;
+store/static/store/styles.css:327:  margin-bottom: 12px;
+store/static/store/styles.css:328:}
+store/static/store/styles.css:329:
+store/static/store/styles.css:330:.alert-success {
+store/static/store/styles.css:331:  background: #ecfdf5;
+store/static/store/styles.css:332:  color: #065f46;
+store/static/store/styles.css:333:  border: 1px solid #a7f3d0;
+store/static/store/styles.css:334:}
+store/static/store/styles.css:335:
+store/static/store/styles.css:336:.alert-error {
+store/static/store/styles.css:337:  background: #fef2f2;
+store/static/store/styles.css:338:  color: #991b1b;
+store/static/store/styles.css:339:  border: 1px solid #fecaca;
+store/static/store/styles.css:340:}
+store/static/store/styles.css:341:
+store/static/store/styles.css:342:.alert-info {
+store/static/store/styles.css:343:  background: #eff6ff;
+store/static/store/styles.css:344:  color: #1e40af;
+store/static/store/styles.css:345:  border: 1px solid #bfdbfe;
+store/static/store/styles.css:346:}
+store/static/store/styles.css:347:
+store/static/store/styles.css:348:/* Reusable Select Dropdown Wrap */
+store/static/store/styles.css:349:.select-wrap {
+store/static/store/styles.css:350:  position: relative;
+store/static/store/styles.css:351:  width: 100%;
+store/static/store/styles.css:352:}
+store/static/store/styles.css:353:
+store/static/store/styles.css:354:.select-wrap select {
+store/static/store/styles.css:355:  width: 100%;
+store/static/store/styles.css:356:  padding: 12px 40px 12px 14px;
+store/static/store/styles.css:357:  font-size: 1rem;
+store/static/store/styles.css:358:  font-family: inherit;
+store/static/store/styles.css:359:  color: #1e293b;
+store/static/store/styles.css:360:  background-color: #ffffff;
+store/static/store/styles.css:361:  border: 1px solid #cbd5e1;
+store/static/store/styles.css:362:  border-radius: 12px;
+store/static/store/styles.css:363:  cursor: pointer;
+store/static/store/styles.css:364:  appearance: none;
+store/static/store/styles.css:365:  -webkit-appearance: none;
+store/static/store/styles.css:366:  -moz-appearance: none;
+store/static/store/styles.css:367:  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+store/static/store/styles.css:368:}
+store/static/store/styles.css:369:
+store/static/store/styles.css:370:.select-wrap::after {
+store/static/store/styles.css:371:  content: "▼";
+store/static/store/styles.css:372:  font-size: 0.75rem;
+store/static/store/styles.css:373:  color: #64748b;
+store/static/store/styles.css:374:  position: absolute;
+store/static/store/styles.css:375:  right: 14px;
+store/static/store/styles.css:376:  top: 50%;
+store/static/store/styles.css:377:  transform: translateY(-50%);
+store/static/store/styles.css:378:  pointer-events: none;
+store/static/store/styles.css:379:}
+store/static/store/styles.css:380:
+store/static/store/styles.css:381:.select-wrap select:focus {
+store/static/store/styles.css:382:  outline: none;
+store/static/store/styles.css:383:  border-color: #1d4ed8;
+store/static/store/styles.css:384:  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+store/static/store/styles.css:385:}
+store/static/store/styles.css:386:
+store/static/store/styles.css:387:.select-wrap select:invalid {
+store/static/store/styles.css:388:  color: #94a3b8;
+store/static/store/styles.css:389:}
+store/static/store/styles.css:390:
+store/static/store/styles.css:391:/* Fast Search / Keyboard Checkout Combobox */
+store/static/store/styles.css:392:.medicine-combobox {
+store/static/store/styles.css:393:  position: relative;
+store/static/store/styles.css:394:  width: 100%;
+store/static/store/styles.css:395:}
+store/static/store/styles.css:396:
+store/static/store/styles.css:397:.combobox-input {
+store/static/store/styles.css:398:  width: 100%;
+store/static/store/styles.css:399:  padding: 0.9rem 1rem;
+store/static/store/styles.css:400:  font-size: 1rem;
+store/static/store/styles.css:401:  border: 1px solid var(--border);
+store/static/store/styles.css:402:  background: var(--panel-soft);
+store/static/store/styles.css:403:  border-radius: 12px;
+store/static/store/styles.css:404:  color: var(--text);
+store/static/store/styles.css:405:  outline: none;
+store/static/store/styles.css:406:  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+store/static/store/styles.css:407:}
+store/static/store/styles.css:408:
+store/static/store/styles.css:409:.combobox-input:focus {
+store/static/store/styles.css:410:  border-color: rgba(59, 130, 246, 0.8);
+store/static/store/styles.css:411:  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+store/static/store/styles.css:412:  background: white;
+store/static/store/styles.css:413:}
+store/static/store/styles.css:414:
+store/static/store/styles.css:415:.combobox-dropdown {
+store/static/store/styles.css:416:  position: absolute;
+store/static/store/styles.css:417:  top: calc(100% + 6px);
+store/static/store/styles.css:418:  left: 0;
+store/static/store/styles.css:419:  right: 0;
+store/static/store/styles.css:420:  max-height: 280px;
+store/static/store/styles.css:421:  overflow-y: auto;
+store/static/store/styles.css:422:  background: #ffffff;
+store/static/store/styles.css:423:  border: 1px solid var(--border);
+store/static/store/styles.css:424:  border-radius: 14px;
+store/static/store/styles.css:425:  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
+store/static/store/styles.css:426:  z-index: 100;
+store/static/store/styles.css:427:  padding: 6px;
+store/static/store/styles.css:428:}
+store/static/store/styles.css:429:
+store/static/store/styles.css:430:.combobox-item {
+store/static/store/styles.css:431:  display: flex;
+store/static/store/styles.css:432:  justify-content: space-between;
+store/static/store/styles.css:433:  align-items: center;
+store/static/store/styles.css:434:  padding: 10px 14px;
+store/static/store/styles.css:435:  border-radius: 8px;
+store/static/store/styles.css:436:  cursor: pointer;
+store/static/store/styles.css:437:  transition: background 0.15s ease;
+store/static/store/styles.css:438:  font-size: 0.95rem;
+store/static/store/styles.css:439:}
+store/static/store/styles.css:440:
+store/static/store/styles.css:441:.combobox-item:hover,
+store/static/store/styles.css:442:.combobox-item.active {
+store/static/store/styles.css:443:  background: #eff6ff;
+store/static/store/styles.css:444:}
+store/static/store/styles.css:445:
+store/static/store/styles.css:446:.combobox-item-name {
+store/static/store/styles.css:447:  font-weight: 600;
+store/static/store/styles.css:448:  color: var(--text);
+store/static/store/styles.css:449:}
+store/static/store/styles.css:450:
+store/static/store/styles.css:451:.combobox-item-meta {
+store/static/store/styles.css:452:  font-size: 0.82rem;
+store/static/store/styles.css:453:  color: var(--muted);
+store/static/store/styles.css:454:  display: flex;
+store/static/store/styles.css:455:  align-items: center;
+store/static/store/styles.css:456:  gap: 8px;
+store/static/store/styles.css:457:}
+store/static/store/styles.css:458:
+store/static/store/styles.css:459:.field-hint {
+store/static/store/styles.css:460:  display: block;
+store/static/store/styles.css:461:  font-size: 0.78rem;
+store/static/store/styles.css:462:  color: var(--muted);
+store/static/store/styles.css:463:  margin-top: 4px;
+store/static/store/styles.css:464:}
+store/static/store/styles.css:465:
+store/static/store/styles.css:466:.badge-expired {
+store/static/store/styles.css:467:  display: inline-block;
+store/static/store/styles.css:468:  padding: 2px 7px;
+store/static/store/styles.css:469:  border-radius: 6px;
+store/static/store/styles.css:470:  font-size: 0.72rem;
+store/static/store/styles.css:471:  font-weight: 600;
+store/static/store/styles.css:472:  background: #fee2e2;
+store/static/store/styles.css:473:  color: #991b1b;
+store/static/store/styles.css:474:  border: 1px solid #fecaca;
+store/static/store/styles.css:475:}
+store/static/store/styles.css:476:
+store/static/store/styles.css:477:.badge-stock {
+store/static/store/styles.css:478:  display: inline-block;
+store/static/store/styles.css:479:  padding: 2px 7px;
+store/static/store/styles.css:480:  border-radius: 6px;
+store/static/store/styles.css:481:  font-size: 0.72rem;
+store/static/store/styles.css:482:  font-weight: 600;
+store/static/store/styles.css:483:  background: #ecfdf5;
+store/static/store/styles.css:484:  color: #065f46;
+store/static/store/styles.css:485:  border: 1px solid #a7f3d0;
+store/static/store/styles.css:486:}
+store/static/store/styles.css:487:

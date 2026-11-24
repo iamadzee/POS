@@ -1,0 +1,138 @@
+{% extends "store/layout.html" %}
+
+{% block title %}Archives Vault - Admin Only{% endblock %}
+
+{% block content %}
+<section class="inventory-section">
+  <div class="inventory-card">
+    <div class="inventory-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <span class="eyebrow" style="background: #fef3c7; color: #b45309;"> Admin Vault • Invisible to Clerks</span>
+        <h1 style="display: flex; align-items: center; gap: 10px;">
+          <span></span> Archives Folder
+        </h1>
+        <p style="color: var(--muted); margin: 6px 0 0; font-size: 0.95rem;">
+          Deleted items and stock batches are safely stored here out of sight. You can restore them to active inventory or permanently purge them.
+        </p>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <a href="{% url 'inventory' %}" class="btn-secondary" style="font-size: 0.88rem; padding: 0.6rem 1rem;">&larr; Back to Inventory</a>
+      </div>
+    </div>
+
+    <!-- Archived Batches Section -->
+    <div style="margin-top: 24px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <h2 style="font-size: 1.35rem; margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span></span> Archived Stock Batches ({{ archived_batches_count }})
+        </h2>
+      </div>
+
+      <div class="table-wrap">
+        <table class="inventory-table">
+          <thead>
+            <tr>
+              <th>Batch ID</th>
+              <th>Medicine Name</th>
+              <th>Quantity</th>
+              <th>Expiry Date</th>
+              <th>Archived On</th>
+              <th style="text-align: right;">Vault Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for batch in archived_batches %}
+              <tr>
+                <td>#{{ batch.id }}</td>
+                <td><strong>{{ batch.item.name }}</strong></td>
+                <td>{{ batch.quantity }}</td>
+                <td>{{ batch.expiry_date }}</td>
+                <td>{{ batch.archived_at|date:"M d, Y - h:i A"|default:"Recently" }}</td>
+                <td style="text-align: right;">
+                  <form action="{% url 'restore_batch' batch.id %}" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-restore" title="Restore to active inventory">
+                      ↺ Restore
+                    </button>
+                  </form>
+
+                  <form action="{% url 'delete_batch_permanent' batch.id %}" method="post" style="display: inline;" onsubmit="return confirm('Permanently purge Batch #{{ batch.id }} from the database? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-delete-perm" title="Delete permanently">
+                      ✕ Purge
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="empty-state">
+                  No archived batches. Deleted batches will appear here safely.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Archived Items Section -->
+    <div style="margin-top: 38px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <h2 style="font-size: 1.35rem; margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span></span> Archived Medicines ({{ archived_items_count }})
+        </h2>
+      </div>
+
+      <div class="table-wrap">
+        <table class="inventory-table">
+          <thead>
+            <tr>
+              <th>Item Name</th>
+              <th>Cost Price</th>
+              <th>Sale Price</th>
+              <th>Description</th>
+              <th>Archived On</th>
+              <th style="text-align: right;">Vault Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in archived_items %}
+              <tr>
+                <td><strong>{{ item.name }}</strong></td>
+                <td>{{ item.cost_price }}</td>
+                <td>{{ item.selling_price }}</td>
+                <td style="color: var(--muted); font-size: 0.88rem;">{{ item.description|truncatewords:8|default:"None" }}</td>
+                <td>{{ item.archived_at|date:"M d, Y - h:i A"|default:"Recently" }}</td>
+                <td style="text-align: right;">
+                  <form action="{% url 'restore_item' item.id %}" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-restore" title="Restore medicine and all its batches">
+                      ↺ Restore
+                    </button>
+                  </form>
+
+                  <form action="{% url 'delete_item_permanent' item.id %}" method="post" style="display: inline;" onsubmit="return confirm('Permanently delete {{ item.name }} and all its batches? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-delete-perm" title="Delete permanently">
+                      ✕ Purge
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="empty-state">
+                  No archived medicines. When you delete a medicine, it is preserved here.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+{% endblock %}

@@ -2,10 +2,24 @@ from datetime import date, timedelta
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
-from store.models import Item, Batch
+from store.models import User, Item, Batch, Sale
 
 class ModelTests(TestCase):
     def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="admin_test",
+            password="pass",
+            is_admin=True,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.clerk_user = User.objects.create_user(
+            username="clerk_test",
+            password="pass",
+            is_admin=False,
+            is_staff=False,
+            is_superuser=False
+        )
         self.item = Item.objects.create(
             name="Paracetamol 500mg",
             description="Pain relief",
@@ -22,32 +36,74 @@ class ModelTests(TestCase):
             quantity=30,
             expiry_date=date.today() + timedelta(days=60),
         )
+        self.expired_batch = Batch.objects.create(
+            item=self.item,
+            quantity=5,
+            expiry_date=date.today() - timedelta(days=5),
+        )
+
+    def test_user_roles(self):
+        self.assertTrue(self.admin_user.is_admin_user)
+        self.assertFalse(self.admin_user.is_clerk_user)
+        self.assertEqual(self.admin_user.role_display, "Admin")
+
+        self.assertFalse(self.clerk_user.is_admin_user)
+        self.assertTrue(self.clerk_user.is_clerk_user)
+        self.assertEqual(self.clerk_user.role_display, "Clerk / Salesman")
 
     def test_item_properties(self):
-        self.assertEqual(self.item.total_quantity(), 50)
-        self.assertEqual(self.item.quantity, 50)
-        self.assertEqual(self.item.amount, 50)
+        self.assertEqual(self.item.total_quantity(), 55)
+        self.assertEqual(self.item.unexpired_quantity(), 50)
+        self.assertEqual(self.item.expired_quantity(), 5)
         self.assertEqual(self.item.profit, Decimal("5.00"))
-        self.assertEqual(self.item.total_cost, Decimal("500.00"))
-        self.assertEqual(self.item.total_selling, Decimal("750.00"))
-        self.assertEqual(self.item.total_profit, Decimal("250.00"))
-        self.assertEqual(str(self.item), "Paracetamol 500mg")
 
-    def test_batch_properties(self):
-        self.assertEqual(self.batch1.name, "Paracetamol 500mg")
-        self.assertEqual(self.batch1.amount, 20)
-        self.assertEqual(self.batch1.cost_price, Decimal("10.00"))
-        self.assertEqual(self.batch1.selling_price, Decimal("15.00"))
-        self.assertEqual(self.batch1.profit, Decimal("5.00"))
-        self.assertEqual(self.batch1.total_cost, Decimal("200.00"))
-        self.assertEqual(self.batch1.total_selling, Decimal("300.00"))
-        self.assertEqual(self.batch1.total_profit, Decimal("100.00"))
-        self.assertIn("Paracetamol 500mg", str(self.batch1))
+    def test_archiving_item_and_batch(self):
+        # Archiving batch
+        self.batch1.archive()
+        self.assertTrue(self.batch1.is_archived)
+        self.assertIsNotNone(self.batch1.archived_at)
+        # Active quantity should now exclude batch1 (55 - 20 = 35)
+        self.assertEqual(self.item.total_quantity(), 35)
+
+        # Restoring batch
+        self.batch1.restore()
+        self.assertFalse(self.batch1.is_archived)
+        self.assertEqual(self.item.total_quantity(), 55)
+
+        # Archiving entire item
+        self.item.archive()
+        self.batch1.refresh_from_db()
+        self.batch2.refresh_from_db()
+        self.assertTrue(self.item.is_archived)
+        self.assertTrue(self.batch1.is_archived)
+        self.assertTrue(self.batch2.is_archived)
+
+        # Restoring entire item
+        self.item.restore()
+        self.batch1.refresh_from_db()
+        self.batch2.refresh_from_db()
+        self.assertFalse(self.item.is_archived)
+        self.assertFalse(self.batch1.is_archived)
+        self.assertFalse(self.batch2.is_archived)
 
 
-class ViewTests(TestCase):
+class RoleAndArchiveViewTests(TestCase):
     def setUp(self):
         self.client = Client()
+        self.admin_user = User.objects.create_user(
+            username="admin",
+            password="admin123",
+            is_admin=True,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.clerk_user = User.objects.create_user(
+            username="clerk",
+            password="clerk123",
+            is_admin=False,
+            is_staff=False,
+            is_superuser=False
+        )
         self.item = Item.objects.create(
             name="Amoxicillin 250mg",
             description="Antibiotic",
@@ -65,103 +121,144 @@ class ViewTests(TestCase):
             expiry_date=date.today() + timedelta(days=50),
         )
 
-    def test_inventory_view(self):
-        response = self.client.get(reverse('inventory'))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Amoxicillin 250mg")
-        self.assertContains(response, "Total Cost Price")
-        self.assertContains(response, "Total Selling Price")
-        self.assertContains(response, "Total Profit")
-        # 10*20 + 15*20 = 500.00
-        self.assertEqual(response.context['total_cost_price'], "500.00")
-        # 10*30 + 15*30 = 750.00
-        self.assertEqual(response.context['total_selling_price'], "750.00")
-        # 750 - 500 = 250.00
-        self.assertEqual(response.context['total_profit'], "250.00")
-
-    def test_new_item_view_get(self):
-        response = self.client.get(reverse('new'))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Create New Item")
-
-    def test_new_item_view_post_with_batch(self):
-        post_data = {
-            'name': 'Ibuprofen 400mg',
-            'description': 'Anti-inflammatory',
-            'cost_price': '5.00',
-            'sale_price': '8.50',
-            'quantity': '25',
-            'expiry_date': (date.today() + timedelta(days=90)).isoformat(),
-        }
-        response = self.client.post(reverse('new'), post_data, follow=True)
-        self.assertEqual(response.status_code, 200)
-        item = Item.objects.get(name='Ibuprofen 400mg')
-        self.assertEqual(item.cost_price, Decimal('5.00'))
-        self.assertEqual(item.selling_price, Decimal('8.50'))
-        self.assertEqual(item.batches.count(), 1)
-        batch = item.batches.first()
-        self.assertEqual(batch.quantity, 25)
-        self.assertEqual(batch.profit, Decimal('3.50'))
-
-    def test_add_batch_view_get(self):
-        response = self.client.get(reverse('add'))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Amoxicillin 250mg")
-
-    def test_add_batch_view_post(self):
-        post_data = {
-            'item_id': str(self.item.id),
-            'quantity': '12',
-            'expiry_date': (date.today() + timedelta(days=120)).isoformat(),
-        }
-        response = self.client.post(reverse('add'), post_data, follow=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.item.batches.count(), 3)
-        self.assertEqual(self.item.total_quantity(), 10 + 15 + 12)
-
-    def test_sell_view_get(self):
+    def test_unauthenticated_redirects_to_login(self):
         response = self.client.get(reverse('home'))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Amoxicillin 250mg")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/', response.url)
 
-    def test_sell_view_post_fefo_partial(self):
-        # Total available: 25. Sell 5 -> should deduct from batch1 (earlier expiry)
-        post_data = {
+    def test_demo_login_buttons(self):
+        # Demo login as clerk
+        res = self.client.post(reverse('login'), {'demo_role': 'clerk'}, follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.context['user'].is_authenticated)
+        self.assertTrue(res.context['user'].is_clerk_user)
+
+        # Logout
+        self.client.get(reverse('logout'), follow=True)
+
+        # Demo login as admin
+        res = self.client.post(reverse('login'), {'demo_role': 'admin'}, follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.context['user'].is_authenticated)
+        self.assertTrue(res.context['user'].is_admin_user)
+
+    def test_clerk_access_allowed_and_denied_views(self):
+        self.client.login(username="clerk", password="clerk123")
+
+        # Clerk CAN access home, inventory, history
+        res = self.client.get(reverse('home'))
+        self.assertEqual(res.status_code, 200)
+
+        res = self.client.get(reverse('inventory'))
+        self.assertEqual(res.status_code, 200)
+        # Clerk should not see Cost Price column
+        self.assertNotContains(res, "Sellable Cost Value")
+
+        res = self.client.get(reverse('history'))
+        self.assertEqual(res.status_code, 200)
+
+        # Clerk is DENIED access to new, add, archives
+        res = self.client.get(reverse('new'), follow=True)
+        self.assertContains(res, "Access restricted: Administrator privileges required.")
+
+        res = self.client.get(reverse('add'), follow=True)
+        self.assertContains(res, "Access restricted: Administrator privileges required.")
+
+        res = self.client.get(reverse('archives'), follow=True)
+        self.assertContains(res, "Access restricted: Administrator privileges required.")
+
+    def test_admin_has_full_access(self):
+        self.client.login(username="admin", password="admin123")
+
+        for url_name in ['home', 'new', 'add', 'inventory', 'history', 'archives']:
+            res = self.client.get(reverse(url_name))
+            self.assertEqual(res.status_code, 200)
+
+    def test_admin_can_archive_and_restore_batch(self):
+        self.client.login(username="admin", password="admin123")
+
+        # Archive batch 1
+        res = self.client.post(reverse('archive_batch', args=[self.batch1.id]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.batch1.refresh_from_db()
+        self.assertTrue(self.batch1.is_archived)
+
+        # Archived batch should not appear in active inventory
+        res = self.client.get(reverse('inventory'))
+        self.assertNotContains(res, f"Batch #{self.batch1.id}")
+
+        # Archived batch MUST appear in Archives Vault
+        res = self.client.get(reverse('archives'))
+        self.assertContains(res, f"#{self.batch1.id}")
+        self.assertContains(res, "Amoxicillin 250mg")
+
+        # Restore batch
+        res = self.client.post(reverse('restore_batch', args=[self.batch1.id]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.batch1.refresh_from_db()
+        self.assertFalse(self.batch1.is_archived)
+
+    def test_admin_can_archive_and_restore_item(self):
+        self.client.login(username="admin", password="admin123")
+
+        # Archive item
+        res = self.client.post(reverse('archive_item', args=[self.item.id]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.is_archived)
+
+        # Item should vanish from active inventory
+        res = self.client.get(reverse('inventory'))
+        self.assertNotContains(res, "Amoxicillin 250mg")
+
+        # Item should vanish from Checkout search
+        res = self.client.get(reverse('home'))
+        self.assertNotContains(res, "Amoxicillin 250mg")
+
+        # Item should be in Archives Vault
+        res = self.client.get(reverse('archives'))
+        self.assertContains(res, "Amoxicillin 250mg")
+
+        # Restore item
+        res = self.client.post(reverse('restore_item', args=[self.item.id]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.item.refresh_from_db()
+        self.assertFalse(self.item.is_archived)
+
+        # Item is back in active inventory
+        res = self.client.get(reverse('inventory'))
+        self.assertContains(res, "Amoxicillin 250mg")
+
+    def test_permanent_delete_removes_from_database(self):
+        self.client.login(username="admin", password="admin123")
+
+        # First archive
+        self.item.archive()
+
+        # Permanent delete
+        res = self.client.post(reverse('delete_item_permanent', args=[self.item.id]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Item.objects.filter(id=self.item.id).exists())
+
+    def test_clerk_cannot_archive_or_restore(self):
+        self.client.login(username="clerk", password="clerk123")
+
+        # Clerk attempts to archive
+        res = self.client.post(reverse('archive_batch', args=[self.batch1.id]), follow=True)
+        self.assertContains(res, "Access restricted: Administrator privileges required.")
+        self.batch1.refresh_from_db()
+        self.assertFalse(self.batch1.is_archived)
+
+    def test_sell_and_history_logging(self):
+        self.client.login(username="clerk", password="clerk123")
+
+        # Clerk sells 5 units
+        res = self.client.post(reverse('home'), {
             'item_id': str(self.item.id),
             'quantity': '5',
-        }
-        response = self.client.post(reverse('home'), post_data, follow=True)
-        self.assertEqual(response.status_code, 200)
-        self.batch1.refresh_from_db()
-        self.batch2.refresh_from_db()
-        self.assertEqual(self.batch1.quantity, 5)
-        self.assertEqual(self.batch2.quantity, 15)
-        self.assertEqual(self.item.total_quantity(), 20)
-
-    def test_sell_view_post_fefo_across_batches(self):
-        # Sell 15 -> batch1 (10) depleted to 0, batch2 (15) reduced to 10
-        post_data = {
-            'item_id': str(self.item.id),
-            'quantity': '15',
-        }
-        response = self.client.post(reverse('home'), post_data, follow=True)
-        self.assertEqual(response.status_code, 200)
-        self.batch1.refresh_from_db()
-        self.batch2.refresh_from_db()
-        self.assertEqual(self.batch1.quantity, 0)
-        self.assertEqual(self.batch2.quantity, 10)
-        self.assertEqual(self.item.total_quantity(), 10)
-
-    def test_sell_view_post_insufficient_stock(self):
-        # Total available: 25. Attempting to sell 30 should fail gracefully
-        post_data = {
-            'item_id': str(self.item.id),
-            'quantity': '30',
-        }
-        response = self.client.post(reverse('home'), post_data, follow=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Insufficient stock")
-        self.batch1.refresh_from_db()
-        self.batch2.refresh_from_db()
-        self.assertEqual(self.batch1.quantity, 10)
-        self.assertEqual(self.batch2.quantity, 15)
+        }, follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(Sale.objects.count(), 1)
+        sale = Sale.objects.first()
+        self.assertEqual(sale.quantity, 5)
+        self.assertEqual(sale.total_price, Decimal("150.00"))

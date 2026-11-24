@@ -1,28 +1,35 @@
 {% extends "store/layout.html" %}
 
-{% block title %}Home{% endblock %}
+{% block title %}Home - Checkout{% endblock %}
 
 {% block content %}
 <section class="form-section">
   <div class="form-card">
     <h1>Sell Item</h1>
 
-    <form class="medical-form" method="post" action="{% url 'home' %}">
+    <form class="medical-form" id="sell-form" method="post" action="{% url 'home' %}">
       {% csrf_token %}
 
       <div class="form-grid">
         <div class="form-field full">
-          <label for="item_id">Select item</label>
-          <div class="select-wrap">
-            <select id="item_id" name="item_id" required>
-              <option value="" disabled selected>-- Select an item --</option>
-              {% for item in items %}
-                <option value="{{ item.id }}">{{ item.name }} (In stock: {{ item.total_quantity }})</option>
-              {% empty %}
-                <option value="" disabled>No items available yet</option>
-              {% endfor %}
-            </select>
+          <label for="medicine-search">Select medicine (Search or type)</label>
+          <div class="medicine-combobox">
+            <input
+              id="medicine-search"
+              type="text"
+              class="combobox-input"
+              placeholder="Type medicine name (e.g., Abbott, Paracetamol)..."
+              autocomplete="off"
+              autofocus
+              required
+            />
+            <input type="hidden" name="item_id" id="selected-item-id" required />
+            <div id="combobox-dropdown" class="combobox-dropdown" style="display: none;"></div>
           </div>
+          <div id="combobox-error" class="combobox-error-msg" style="display: none;"></div>
+          <small class="field-hint">
+            ⌨️ <strong>Fast checkout:</strong> Type letters &rarr; press <kbd>&darr;</kbd> / <kbd>&uarr;</kbd> &rarr; press <kbd>Enter</kbd> to pick from highlighted list &rarr; enter quantity &rarr; press <kbd>Enter</kbd> to sell.
+          </small>
         </div>
 
         <div class="form-field full">
@@ -32,61 +39,224 @@
             type="number"
             name="quantity"
             min="1"
+            value="1"
             placeholder="Enter quantity to sell"
             required
           />
         </div>
       </div>
 
-      <button type="submit" class="primary-btn">Sell</button>
+      <button type="submit" id="submit-btn" class="primary-btn">Complete Sale</button>
     </form>
   </div>
 </section>
-<style>
-    .select-wrap {
-    position: relative;
-    width: 100%;
-}
 
-.select-wrap select {
-    width: 100%;
-    padding: 12px 40px 12px 14px;
-    font-size: 1rem;
-    font-family: inherit;
-    color: #1e293b;
-    background-color: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    cursor: pointer;
-    
-    /* Removes default browser dropdown styling */
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-}
+<!-- Item metadata for instant zero-latency client search -->
+<script id="items-json" type="application/json">
+[
+  {% for item in items %}
+  {
+    "id": "{{ item.id }}",
+    "name": "{{ item.name|escapejs }}",
+    "unexpired": {{ item.unexpired_quantity }},
+    "expired": {{ item.expired_quantity }},
+    "price": "{{ item.selling_price }}"
+  }{% if not forloop.last %},{% endif %}
+  {% endfor %}
+]
+</script>
 
-/* Custom dropdown arrow */
-.select-wrap::after {
-    content: "▼";
-    font-size: 0.75rem;
-    color: #64748b;
-    position: absolute;
-    right: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none; /* Lets clicks pass straight through to the select box */
-}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const itemsJsonEl = document.getElementById('items-json');
+  const itemsData = itemsJsonEl ? JSON.parse(itemsJsonEl.textContent) : [];
+  const searchInput = document.getElementById('medicine-search');
+  const hiddenInput = document.getElementById('selected-item-id');
+  const dropdown = document.getElementById('combobox-dropdown');
+  const quantityInput = document.getElementById('quantity');
+  const errorMsg = document.getElementById('combobox-error');
+  const form = document.getElementById('sell-form');
 
-.select-wrap select:focus {
-    outline: none;
-    border-color: #1d4ed8;
-    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
-}
+  let activeIndex = -1;
+  let filteredItems = [];
 
-/* Greys out the placeholder option when unselected */
-.select-wrap select:invalid {
-    color: #94a3b8;
-}
+  function showError(msg) {
+    if (msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+      searchInput.classList.add('input-error');
+    } else {
+      errorMsg.textContent = '';
+      errorMsg.style.display = 'none';
+      searchInput.classList.remove('input-error');
+    }
+  }
 
-</style>
+  function renderDropdown(items) {
+    filteredItems = items;
+    activeIndex = items.length > 0 ? 0 : -1;
+    dropdown.innerHTML = '';
+
+    if (items.length === 0) {
+      dropdown.innerHTML = '<div style="padding: 10px 14px; color: #b91c1c; font-size: 0.9rem;">❌ No medicine found matching your search. Please add it first under "New Item".</div>';
+      dropdown.style.display = 'block';
+      return;
+    }
+
+    items.forEach((item, index) => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'combobox-item' + (index === 0 ? ' active' : '');
+      itemEl.dataset.index = index;
+
+      const stockBadge = item.unexpired > 0
+        ? `<span class="badge-stock">${item.unexpired} in stock</span>`
+        : `<span class="badge-expired">Out of stock</span>`;
+
+      const expiredBadge = item.expired > 0
+        ? `<span class="badge-expired">${item.expired} expired</span>`
+        : '';
+
+      itemEl.innerHTML = `
+        <span class="combobox-item-name">${item.name}</span>
+        <span class="combobox-item-meta">
+          ${stockBadge}
+          ${expiredBadge}
+          <strong>${item.price}</strong>
+          <span class="enter-hint">↵ Enter</span>
+        </span>
+      `;
+
+      itemEl.addEventListener('click', function () {
+        selectItem(item);
+      });
+
+      dropdown.appendChild(itemEl);
+    });
+
+    dropdown.style.display = 'block';
+  }
+
+  function selectItem(item) {
+    hiddenInput.value = item.id;
+    searchInput.value = item.name;
+    dropdown.style.display = 'none';
+    showError('');
+    quantityInput.focus();
+    quantityInput.select();
+  }
+
+  searchInput.addEventListener('input', function () {
+    const query = this.value.trim().toLowerCase();
+    hiddenInput.value = '';
+    showError('');
+
+    if (!query) {
+      renderDropdown(itemsData);
+      return;
+    }
+
+    const matches = itemsData.filter(item =>
+      item.name.toLowerCase().includes(query)
+    );
+    renderDropdown(matches);
+  });
+
+  searchInput.addEventListener('focus', function () {
+    const query = this.value.trim().toLowerCase();
+    if (!query) {
+      renderDropdown(itemsData);
+    } else {
+      const matches = itemsData.filter(item =>
+        item.name.toLowerCase().includes(query)
+      );
+      renderDropdown(matches);
+    }
+  });
+
+  searchInput.addEventListener('keydown', function (e) {
+    const items = dropdown.querySelectorAll('.combobox-item');
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!items.length || dropdown.style.display === 'none') {
+        renderDropdown(itemsData);
+        return;
+      }
+      activeIndex = (activeIndex + 1) % items.length;
+      updateActiveItem(items);
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!items.length || dropdown.style.display === 'none') return;
+      activeIndex = (activeIndex - 1 + items.length) % items.length;
+      updateActiveItem(items);
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredItems.length > 0) {
+        const targetIndex = activeIndex >= 0 && activeIndex < filteredItems.length ? activeIndex : 0;
+        selectItem(filteredItems[targetIndex]);
+      } else {
+        showError(`Medicine "${searchInput.value.trim()}" not found in inventory. Please choose from available stock or create a new item.`);
+      }
+      return;
+    }
+
+    if (e.key === 'Tab') {
+      if (filteredItems.length > 0 && !hiddenInput.value) {
+        const targetIndex = activeIndex >= 0 && activeIndex < filteredItems.length ? activeIndex : 0;
+        selectItem(filteredItems[targetIndex]);
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      dropdown.style.display = 'none';
+    }
+  });
+
+  function updateActiveItem(items) {
+    items.forEach((item, idx) => {
+      if (idx === activeIndex) {
+        item.classList.add('active');
+        item.scrollIntoView({ block: 'nearest' });
+      } else {
+        item.classList.remove('active');
+      }
+    });
+  }
+
+  // Intercept form submit to ensure shopkeeper picks from the list
+  form.addEventListener('submit', function (e) {
+    if (!hiddenInput.value) {
+      const query = searchInput.value.trim().toLowerCase();
+      // Try exact match or top match first
+      const exactMatch = itemsData.find(item => item.name.toLowerCase() === query);
+      if (exactMatch) {
+        selectItem(exactMatch);
+        return; // Allow submission
+      }
+
+      if (filteredItems.length > 0) {
+        selectItem(filteredItems[0]);
+        return; // Auto-selected top match, allow submission
+      }
+
+      e.preventDefault();
+      showError('Please select a valid medicine from the dropdown list before completing the sale.');
+      searchInput.focus();
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+});
+</script>
 {% endblock %}

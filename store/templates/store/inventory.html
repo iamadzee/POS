@@ -1,59 +1,143 @@
 {% extends "store/layout.html" %}
 
-{% block title %}Inventory{% endblock %}
+{% block title %}Inventory - Times Medical{% endblock %}
 
 {% block content %}
 <section class="inventory-section">
   <div class="inventory-card">
-    <div class="inventory-header">
+    <div class="inventory-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
       <div>
-        <span class="eyebrow">Overview</span>
+        <span class="eyebrow">
+          {% if user.is_admin_user %}
+            Admin View • Full Financials & Controls
+          {% else %}
+            Clerk View • Stock & Retail Prices
+          {% endif %}
+        </span>
         <h1>Inventory</h1>
       </div>
+
+      {% if user.is_admin_user %}
+        <div style="display: flex; gap: 10px;">
+          <a href="{% url 'archives' %}" class="btn-archive-folder"> Open Archives Vault</a>
+          <a href="{% url 'new' %}" class="primary-btn" style="padding: 0.6rem 1.1rem; font-size: 0.9rem;">+ New Item</a>
+        </div>
+      {% endif %}
     </div>
 
+    {% if expired_units_count > 0 and user.is_admin_user %}
+      <div class="alert alert-error" style="margin-bottom: 22px;">
+         <strong>Expired Stock Alert:</strong> {{ expired_units_count }} expired unit(s) found in stock (Cost Loss: {{ expired_cost_loss }}). Expired batches are excluded from expected revenue and profit totals.
+      </div>
+    {% endif %}
+
+    <!-- Overview Stats Grid -->
     <div class="stats-grid">
-      <div class="stat-box">
-        <span class="stat-label">Total Cost Price</span>
-        <strong>{{ total_cost_price }}</strong>
-      </div>
+      {% if user.is_admin_user %}
+        <div class="stat-box">
+          <span class="stat-label">Sellable Cost Value</span>
+          <strong>{{ total_cost_price }}</strong>
+        </div>
 
-      <div class="stat-box">
-        <span class="stat-label">Total Selling Price</span>
-        <strong>{{ total_selling_price }}</strong>
-      </div>
+        <div class="stat-box">
+          <span class="stat-label">Expected Revenue</span>
+          <strong>{{ total_selling_price }}</strong>
+        </div>
 
-      <div class="stat-box">
-        <span class="stat-label">Total Profit</span>
-        <strong>{{ total_profit }}</strong>
-      </div>
+        <div class="stat-box">
+          <span class="stat-label">Expected Profit</span>
+          <strong>{{ total_profit }}</strong>
+        </div>
+      {% else %}
+        <div class="stat-box">
+          <span class="stat-label">Total Sellable Units</span>
+          <strong>{{ total_sellable_units }}</strong>
+        </div>
+
+        <div class="stat-box">
+          <span class="stat-label">Expected Retail Value</span>
+          <strong>{{ total_selling_price }}</strong>
+        </div>
+
+        <div class="stat-box">
+          <span class="stat-label">Stock Status</span>
+          <strong style="color: #059669; font-size: 1.3rem;">Active Inventory</strong>
+        </div>
+      {% endif %}
     </div>
 
+    <!-- Inventory Table -->
     <div class="table-wrap">
       <table class="inventory-table">
         <thead>
           <tr>
             <th>Item Name</th>
             <th>Quantity</th>
-            <th>Cost Price</th>
+            {% if user.is_admin_user %}
+              <th>Cost Price</th>
+            {% endif %}
             <th>Selling Price</th>
-            <th>Profit</th>
+            {% if user.is_admin_user %}
+              <th>Profit</th>
+            {% endif %}
             <th>Expiry Date</th>
+            {% if user.is_admin_user %}
+              <th style="text-align: right;">Manage</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
           {% for batch in batches %}
             <tr>
-              <td>{{ batch.name }}</td>
-              <td>{{ batch.amount }}</td>
-              <td>{{ batch.cost_price }}</td>
-              <td>{{ batch.selling_price }}</td>
-              <td>{{ batch.profit }}</td>
-              <td>{{ batch.expiry_date }}</td>
+              <td>
+                <strong>{{ batch.name }}</strong>
+                {% if batch.id and user.is_admin_user %}
+                  <small style="color: var(--muted); display: block; font-size: 0.76rem;">Batch #{{ batch.id }}</small>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge-stock">{{ batch.amount }} units</span>
+              </td>
+              {% if user.is_admin_user %}
+                <td>{{ batch.cost_price }}</td>
+              {% endif %}
+              <td><strong>{{ batch.selling_price }}</strong></td>
+              {% if user.is_admin_user %}
+                <td style="color: #059669; font-weight: 600;">+{{ batch.profit }}</td>
+              {% endif %}
+              <td>
+                {{ batch.expiry_date }}
+                {% if batch.is_expired %}
+                  <span class="badge-expired">Expired</span>
+                {% endif %}
+              </td>
+              {% if user.is_admin_user %}
+                <td style="text-align: right; white-space: nowrap;">
+                  {% if batch.id %}
+                    <form action="{% url 'archive_batch' batch.id %}" method="post" style="display: inline;" onsubmit="return confirm('Move Batch #{{ batch.id }} of {{ batch.name }} to Archives?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn-archive-sm" title="Archive this batch">
+                        Delete Batch
+                      </button>
+                    </form>
+                  {% endif %}
+
+                  {% if batch.item.id %}
+                    <form action="{% url 'archive_item' batch.item.id %}" method="post" style="display: inline;" onsubmit="return confirm('Archive entire medicine \'{{ batch.name }}\' and all its stock?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn-archive-item-sm" title="Archive entire medicine">
+                        Archive Item
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
+              {% endif %}
             </tr>
           {% empty %}
             <tr>
-              <td colspan="6" class="empty-state">No batches available</td>
+              <td colspan="{% if user.is_admin_user %}7{% else %}4{% endif %}" class="empty-state">
+                No medicines available in active inventory.
+              </td>
             </tr>
           {% endfor %}
         </tbody>

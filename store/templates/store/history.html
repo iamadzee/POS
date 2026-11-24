@@ -1,19 +1,84 @@
 {% extends "store/layout.html" %}
 
-{% block title %}History{% endblock %}
+{% block title %}Sales History & Closing{% endblock %}
 
 {% block content %}
 <section class="inventory-section">
   <div class="inventory-card">
     <div class="inventory-header">
       <div>
-        <span class="eyebrow">Records</span>
-        <h1>History</h1>
+        <span class="eyebrow">
+          {% if user.is_admin_user %}
+            Admin View • Cash & Net Margins
+          {% else %}
+            Clerk View • Register Cash Reconcile
+          {% endif %}
+        </span>
+        <h1>Sales History & Closing</h1>
       </div>
     </div>
-    <p style="color: var(--muted); font-size: 1.05rem;">
-      Transaction and sales history will be logged here.
-    </p>
+
+    <!-- Daily Closing Summary Cards -->
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-label">Today's Cash Total</span>
+        <strong>{{ today_cash_total }}</strong>
+      </div>
+
+      {% if user.is_admin_user %}
+        <div class="stat-box">
+          <span class="stat-label">Today's Profit</span>
+          <strong>{{ today_profit }}</strong>
+        </div>
+      {% else %}
+        <div class="stat-box">
+          <span class="stat-label">Transactions Today</span>
+          <strong>{{ today_sales_count }} sales</strong>
+        </div>
+      {% endif %}
+
+      <div class="stat-box">
+        <span class="stat-label">Today's Units Sold</span>
+        <strong>{{ today_items_sold }} units</strong>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="inventory-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Item Name</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Total Cash</th>
+            {% if user.is_admin_user %}
+              <th>Profit</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for sale in sales %}
+            <tr>
+              <td>{{ sale.timestamp|date:"M d, Y - h:i A" }}</td>
+              <td><strong>{{ sale.item_name }}</strong></td>
+              <td>{{ sale.quantity }}</td>
+              <td>{{ sale.selling_price }}</td>
+              <td><strong>{{ sale.total_price }}</strong></td>
+              {% if user.is_admin_user %}
+                <td style="color: #059669; font-weight: 600;">+{{ sale.profit }}</td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="{% if user.is_admin_user %}6{% else %}5{% endif %}" class="empty-state">
+                No sales recorded yet. Check out a customer on the Home page to start logging sales.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 {% endblock %}
