@@ -174,6 +174,20 @@ class RoleAndArchiveViewTests(TestCase):
             res = self.client.get(reverse(url_name))
             self.assertEqual(res.status_code, 200)
 
+    def test_expired_inventory_batch_is_highlighted(self):
+        expired_batch = Batch.objects.create(
+            item=self.item,
+            quantity=3,
+            expiry_date=date.today() - timedelta(days=1),
+        )
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(reverse('inventory'))
+
+        self.assertContains(response, '<tr class="inventory-row-expired">', html=False)
+        self.assertContains(response, f'Batch #{expired_batch.id}', html=False)
+        self.assertNotContains(response, "Expired Stock Alert")
+
     def test_admin_can_archive_and_restore_batch(self):
         self.client.login(username="admin", password="admin123")
 

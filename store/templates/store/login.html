@@ -3,8 +3,8 @@
 {% block title %}Sign In - Times Medical{% endblock %}
 
 {% block content %}
-<section class="form-section">
-  <div class="form-card" style="max-width: 520px; margin: 0 auto;">
+<section class="form-section login-section">
+  <div class="form-card login-card">
     <div style="text-align: center; margin-bottom: 24px;">
       <div class="brand-mark" style="margin: 0 auto 12px; width: 48px; height: 48px; font-size: 1.2rem;">TM</div>
       <h1 style="font-size: 1.8rem; margin: 0 0 6px;">Staff Sign In</h1>
@@ -44,31 +44,7 @@
       <button type="submit" class="primary-btn" style="width: 100%; margin-top: 8px;">Sign In</button>
     </form>
 
-    <div class="demo-login-box">
-      <div class="demo-title"> Quick Demo Login (Two Account Levels)</div>
-      <p class="demo-desc">
-        Click below to instantly test the two different levels of account access:
-      </p>
-
-      <form method="post" action="{% url 'login' %}" style="display: grid; gap: 10px;">
-        {% csrf_token %}
-        <button type="submit" name="demo_role" value="admin" class="demo-btn demo-btn-admin">
-          <span style="font-size: 1.1rem;"></span>
-          <div style="text-align: left;">
-            <strong>Log In as Admin</strong>
-            <small style="display: block; opacity: 0.85;">Full management, Archives Vault, New Items, Cost/Profit</small>
-          </div>
-        </button>
-
-        <button type="submit" name="demo_role" value="clerk" class="demo-btn demo-btn-clerk">
-          <span style="font-size: 1.1rem;"></span>
-          <div style="text-align: left;">
-            <strong>Log In as Clerk / Salesman</strong>
-            <small style="display: block; opacity: 0.85;">Checkout & stock check only; Archives & Admin hidden</small>
-          </div>
-        </button>
-      </form>
-    </div>
+   
   </div>
 </section>
 {% endblock %}

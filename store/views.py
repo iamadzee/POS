@@ -286,11 +286,6 @@ def inventory(request):
     total_selling_price = sum(b.selling_price * b.quantity for b in sellable_batches)
     total_profit = sum(b.profit * b.quantity for b in sellable_batches)
 
-    # Track expired stock loss separately
-    expired_batches = [b for b in batches if b.is_expired]
-    expired_cost_loss = sum(b.cost_price * b.quantity for b in expired_batches)
-    expired_units_count = sum(b.quantity for b in expired_batches)
-
     total_sellable_units = sum(b.quantity for b in sellable_batches)
 
     context = {
@@ -298,8 +293,6 @@ def inventory(request):
         'total_cost_price': f"{total_cost_price:.2f}",
         'total_selling_price': f"{total_selling_price:.2f}",
         'total_profit': f"{total_profit:.2f}",
-        'expired_cost_loss': f"{expired_cost_loss:.2f}",
-        'expired_units_count': expired_units_count,
         'total_sellable_units': total_sellable_units,
     }
     return render(request, 'store/inventory.html', context)
