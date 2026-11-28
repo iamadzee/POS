@@ -76,7 +76,11 @@
             {% if user.is_admin_user %}
               <th contenteditable="true" data-sort-type="number" title="Edit the heading and press Enter to sort by profit">Profit</th>
             {% endif %}
-            <th contenteditable="true" data-sort-type="date" title="Edit the heading and press Enter to sort by expiry date">Expiry Date</th>
+            <th data-sort-type="date" aria-label="Expiry Date">
+              <button type="button" class="table-sort-button" data-sort-cycle aria-label="Sort expiry date ascending">
+                Expiry Date <span class="sort-indicator" aria-hidden="true">↕</span>
+              </button>
+            </th>
             {% if user.is_admin_user %}
               <th style="text-align: right;">Manage</th>
             {% endif %}
@@ -101,7 +105,7 @@
               {% if user.is_admin_user %}
                 <td style="color: #059669; font-weight: 600;">+{{ batch.profit }}</td>
               {% endif %}
-              <td data-sort-value="{{ batch.expiry_date }}">
+              <td data-sort-value="{{ batch.expiry_date|date:'Y-m-d' }}">
                 {{ batch.expiry_date }}
                 {% if batch.is_expired %}
                   <span class="badge-expired">Expired</span>

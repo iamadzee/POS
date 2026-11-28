@@ -38,7 +38,11 @@
               <th contenteditable="true" data-sort-type="number" title="Edit the heading and press Enter to sort by batch ID">Batch ID</th>
               <th contenteditable="true" data-sort-type="text" title="Edit the heading and press Enter to sort by medicine name">Medicine Name</th>
               <th contenteditable="true" data-sort-type="number" title="Edit the heading and press Enter to sort by quantity">Quantity</th>
-              <th contenteditable="true" data-sort-type="date" title="Edit the heading and press Enter to sort by expiry date">Expiry Date</th>
+              <th data-sort-type="date" aria-label="Expiry Date">
+                <button type="button" class="table-sort-button" data-sort-cycle aria-label="Sort expiry date ascending">
+                  Expiry Date <span class="sort-indicator" aria-hidden="true">↕</span>
+                </button>
+              </th>
               <th contenteditable="true" data-sort-type="date" title="Edit the heading and press Enter to sort by archive date">Archived On</th>
               <th style="text-align: right;">Vault Actions</th>
             </tr>
@@ -49,7 +53,7 @@
                 <td data-sort-value="{{ batch.id }}">#{{ batch.id }}</td>
                 <td><strong>{{ batch.item.name }}</strong></td>
                 <td>{{ batch.quantity }}</td>
-                <td>{{ batch.expiry_date }}</td>
+                <td data-sort-value="{{ batch.expiry_date|date:'Y-m-d' }}">{{ batch.expiry_date }}</td>
                 <td data-sort-value="{{ batch.archived_at|date:'Y-m-d H:i:s' }}">{{ batch.archived_at|date:"M d, Y - h:i A"|default:"Recently" }}</td>
                 <td style="text-align: right;">
                   <form action="{% url 'restore_batch' batch.id %}" method="post" style="display: inline;">
